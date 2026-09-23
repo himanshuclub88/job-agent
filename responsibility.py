@@ -4,7 +4,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
-from llm import LLM
+from llm import LLMClient
 from models import DailySummary, JobEvent
 
 
@@ -48,7 +48,7 @@ def analyze_today(events: list[JobEvent], today: date, settings) -> DailySummary
     if not events:
         return DailySummary()
 
-    llm = LLM(settings)
+    llm = LLMClient(settings)
     event_text = "\n\n".join(e.model_dump_json() for e in events)
 
     user = f"""

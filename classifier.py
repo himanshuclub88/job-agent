@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from email_parser import compact_for_llm
-from llm import LLM
+from llm import LLMClient
 from models import Classification, EmailMessage
 
 
@@ -32,7 +32,7 @@ def classify_emails(emails: list[EmailMessage], settings) -> list[Classification
     if not emails:
         return []
 
-    llm = LLM(settings)
+    llm = LLMClient(settings)
     chunks = []
     # Keep prompts bounded for local/API models.
     batch_size = 15

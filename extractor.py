@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from email_parser import compact_for_llm
-from llm import LLM
+from llm import LLMClient
 from models import Classification, EmailMessage, JobEvent
 
 
@@ -51,7 +51,7 @@ def extract_job_events_from_emails(
     if not relevant:
         return []
 
-    llm = LLM(settings)
+    llm = LLMClient(settings)
     result: list[JobEvent] = []
 
     batch_size = 10
