@@ -3,7 +3,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from email_parser import compact_for_llm
-from llm import LLMClient
+from llm import build_structured_chain
 from models import Classification, EmailMessage
 
 
@@ -14,34 +14,60 @@ class ClassificationResult(BaseModel):
 SYSTEM = """
 You classify emails for a personal job-search assistant.
 
-Return JSON matching the requested schema.
 Job-related categories:
 APPLICATION, RECRUITER, INTERVIEW, INTERVIEW_RESCHEDULE, ASSESSMENT,
 APPLICATION_UPDATE, REJECTION, OFFER, BACKGROUND_CHECK, JOINING,
 JOB_ALERT, JOB_RECOMMENDATION, REFERRAL, OTHER_JOB_RELATED.
 
 A job alert is NOT an application.
-An actual application confirmation/application status belongs to APPLICATION or APPLICATION_UPDATE.
-Only mark is_job_related=true when the email is materially related to job search/recruiting.
-Ignore newsletters, marketing, invoices, social notifications, and unrelated mail.
+
+An actual application confirmation/application status belongs to
+APPLICATION or APPLICATION_UPDATE.
+
+Only mark is_job_related=true when the email is materially related
+to job search/recruiting.
+
+Ignore newsletters, marketing, invoices, social notifications,
+and unrelated mail.
+
 Do not infer missing facts.
 """
 
 
-def classify_emails(emails: list[EmailMessage], settings) -> list[Classification]:
+def classify_emails(
+    emails: list[EmailMessage],
+    settings=None,
+) -> list[Classification]:
+
     if not emails:
         return []
 
-    llm = LLMClient(settings)
-    chunks = []
-    # Keep prompts bounded for local/API models.
+    chain = build_structured_chain(
+        SYSTEM,
+        ClassificationResult,
+    )
+
+    results: list[Classification] = []
+
     batch_size = 15
+
     for i in range(0, len(emails), batch_size):
+
         batch = emails[i:i + batch_size]
-        user = (
-            "Classify these emails. Return one item for every message.\n\n"
-            + "\n--- EMAIL ---\n".join(compact_for_llm(e) for e in batch)
+
+        user_input = (
+            "Classify these emails. "
+            "Return one item for every message.\n\n"
+            + "\n--- EMAIL ---\n".join(
+                compact_for_llm(email)
+                for email in batch
+            )
         )
-        result = llm.structured(SYSTEM, user, ClassificationResult)
-        chunks.extend(result.items)
-    return chunks
+
+        result: ClassificationResult = chain.invoke(
+            {"input": user_input}
+        )
+
+        results.extend(result.items)
+
+    return results

@@ -1,121 +1,69 @@
-import json
-import time
+# llm.py
 
-from openai import OpenAI
+from __future__ import annotations
 
+from functools import lru_cache
 
-def make_nvidia_schema(schema):
-    """
-    NVIDIA structured-output JSON Schema requires
-    additionalProperties=false on every object.
-    """
+from langchain_core.output_parsers import PydanticOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import Runnable
+from pydantic import BaseModel
 
-    schema_json = schema.model_json_schema()
-
-    def fix_object(obj):
-        if isinstance(obj, dict):
-
-            if obj.get("type") == "object":
-                obj["additionalProperties"] = False
-
-            for value in obj.values():
-                fix_object(value)
-
-        elif isinstance(obj, list):
-
-            for item in obj:
-                fix_object(item)
-
-    fix_object(schema_json)
-
-    return schema_json
+from config import settings
 
 
-class LLMClient:
+@lru_cache(maxsize=1)
+def get_llm():
 
-    def __init__(self, settings):
+    from langchain_openai import ChatOpenAI
 
-        self.client = OpenAI(
-            api_key=settings.llm_api_key,
-            base_url=settings.llm_base_url,
+    return ChatOpenAI(
+        model=settings.llm_model,
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        temperature=0,
+        timeout=120,
+        max_retries=2,
+    )
+
+
+def build_structured_chain(
+    system_prompt: str,
+    output_model: type[BaseModel],
+) -> Runnable:
+
+    parser = PydanticOutputParser(
+        pydantic_object=output_model
+    )
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                system_prompt
+                + "\n\n"
+                + "You MUST follow these output instructions:\n"
+                + "{format_instructions}",
+            ),
+            (
+                "human",
+                "{input}",
+            ),
+        ]
+    )
+
+    return (
+        prompt.partial(
+            format_instructions=parser.get_format_instructions()
         )
-
-        self.model = settings.llm_model
-
-    def structured(self, system_prompt, user_prompt, schema):
-
-        last_error = None
-
-        response_schema = make_nvidia_schema(schema)
-
-        for attempt in range(3):
-
-            try:
-
-                response = self.client.chat.completions.create(
-
-                    model=self.model,
-
-                    messages=[
-                        {
-                            "role": "system",
-                            "content": system_prompt,
-                        },
-                        {
-                            "role": "user",
-                            "content": user_prompt,
-                        },
-                    ],
-
-                    response_format={
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": schema.__name__,
-                            "schema": response_schema,
-                            "strict": True,
-                        },
-                    },
-
-                    temperature=0,
-
-                    max_tokens=4096,
-
-                    timeout=120,
-                )
-
-                content = response.choices[0].message.content
-
-                data = json.loads(content)
-
-                return schema.model_validate(data)
-
-            except Exception as e:
-
-                last_error = e
-
-                print(
-                    f"LLM request failed "
-                    f"(attempt {attempt + 1}/3): "
-                    f"{type(e).__name__}: {e}"
-                )
-
-                if attempt < 2:
-
-                    wait = 2 ** attempt
-
-                    print(
-                        f"Retrying in {wait} seconds..."
-                    )
-
-                    time.sleep(wait)
-
-        raise last_error
-
-
+        | get_llm()
+        | parser
+    )
 if __name__ == "__main__":
 
     from pydantic import BaseModel
-    from config import settings
+    from langchain_core.output_parsers import PydanticOutputParser
+    from langchain_core.prompts import PromptTemplate
 
 
     class TestResponse(BaseModel):
@@ -123,20 +71,48 @@ if __name__ == "__main__":
         success: bool
 
 
-    llm = LLMClient(settings)
-
-    result = llm.structured(
-
-        system_prompt=(
-            "Return a JSON response matching the schema."
-        ),
-
-        user_prompt=(
-            "Say hello and indicate that the test succeeded."
-        ),
-
-        schema=TestResponse,
+    parser = PydanticOutputParser(
+        pydantic_object=TestResponse
     )
 
-    print("\nRESULT:")
-    print(result)
+
+    prompt = PromptTemplate(
+        template="""
+You are testing an LLM connection.
+
+Return a response confirming that the model test was successful.
+
+{format_instructions}
+
+User request:
+{user_input}
+""",
+        input_variables=["user_input"],
+        partial_variables={
+            "format_instructions": parser.get_format_instructions()
+        },
+    )
+
+
+    llm = get_llm()
+
+    chain = prompt | llm | parser
+
+
+    try:
+        result = chain.invoke({
+            "user_input": "Say hello and confirm that the LLM test succeeded."
+        })
+
+        print("\n========== LLM TEST ==========")
+        print("Message :", result.message)
+        print("Success :", result.success)
+        print("Type    :", type(result).__name__)
+        print("==============================\n")
+
+    except Exception as e:
+
+        print("\n========== LLM TEST FAILED ==========")
+        print("Error type :", type(e).__name__)
+        print("Error      :", str(e))
+        print("=====================================\n")
