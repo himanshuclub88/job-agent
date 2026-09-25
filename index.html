@@ -70,7 +70,7 @@
     <script>
         async function loadMarkdown() {
             try {
-                const response = await fetch("gmail.md");
+                const response = await fetch("output\summary.md");
 
                 if (!response.ok) {
                     throw new Error("Could not load gmail.md");
