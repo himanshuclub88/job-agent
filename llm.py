@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from config import settings
 
 
-@lru_cache(maxsize=1)
+# @lru_cache(maxsize=1)
 def get_llm():
 
     from langchain_openai import ChatOpenAI

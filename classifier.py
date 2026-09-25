@@ -38,7 +38,7 @@ def classify_emails(
     emails: list[EmailMessage],
     settings=None,
 ) -> list[Classification]:
-
+    print("running.... classify emails",len(emails))
     if not emails:
         return []
 
@@ -69,5 +69,12 @@ def classify_emails(
         )
 
         results.extend(result.items)
+
+        from pprint import pprint
+        print("\n" + "=" * 70)
+        print(f"{'BATCH ' + str((i // batch_size) + 1):^70}")
+        print("=" * 70)
+        pprint(result.items)
+        print("-" * 70)
 
     return results

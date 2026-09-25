@@ -5,7 +5,7 @@ import re
 from datetime import date, datetime, time, timedelta
 from email.utils import parseaddr
 from pathlib import Path
-
+import time as tme
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -70,18 +70,46 @@ class GmailClient:
 
         messages = []
         for item in ids:
-            raw = self.service.users().messages().get(
-                userId="me",
-                id=item["id"],
-                format="full",
-            ).execute()
-            parsed = self._parse_message(raw)
-            local_date = parsed.received_at.astimezone(self.settings.tz).date()
-            if start_date <= local_date <= end_date:
-                messages.append(parsed)
+            for attempt in range(3):
+                try:
+                    raw = self.service.users().messages().get(
+                        userId="me",
+                        id=item["id"],
+                        format="full",
+                    ).execute()
+
+                    parsed = self._parse_message(raw)
+
+                    local_date = (
+                        parsed.received_at
+                        .astimezone(self.settings.tz)
+                        .date()
+                    )
+
+                    if start_date <= local_date <= end_date:
+                        messages.append(parsed)
+
+                    break
+
+                except Exception as e:
+                    if attempt == 2:
+                        print(
+                            f"Failed to fetch Gmail message "
+                            f"{item['id']}: {type(e).__name__}: {e}"
+                        )
+                        continue
+
+                    wait = 2 ** attempt
+                    print(
+                        f"Gmail request failed for {item['id']} "
+                        f"(attempt {attempt + 1}/3). "
+                        f"Retrying in {wait}s..."
+                    )
+                    tme.sleep(wait)
 
         messages.sort(key=lambda x: x.received_at)
         return messages
+    
 
     def _parse_message(self, raw: dict) -> EmailMessage:
         headers = {
