@@ -30,12 +30,26 @@ def main() -> None:
     emails = gmail.fetch_messages(start_date, end_date)
     print(f"Emails found: {len(emails)}")
 
+    # Stop the entire job if there are no emails
+    if not emails:
+        print("No emails found. Nothing to analyze.")
+        print("Job stopped.")
+        return
+
+
     state = StateStore(settings.state_file)
     candidates = state.filter_for_processing(emails)
 
     classifications = classify_emails(candidates, settings)
     relevant = [c for c in classifications if c.is_job_related]
     print(f"Job-related emails: {len(relevant)}")
+
+    # Stop the entire job if there are no emails
+    if not relevant:
+        print("No Job-related emails found. Nothing to analyze.")
+        print("Job stopped.")
+        return
+
 
     events = extract_job_events_from_emails(emails, relevant, settings)
 
