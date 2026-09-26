@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from config import settings
 
 
-# @lru_cache(maxsize=1)
+@lru_cache(maxsize=1)
 def get_llm():
 
     from langchain_openai import ChatOpenAI
@@ -22,7 +22,7 @@ def get_llm():
         api_key=settings.llm_api_key,
         base_url=settings.llm_base_url,
         temperature=0,
-        timeout=120,
+        timeout=800,
         max_retries=2,
     )
 
