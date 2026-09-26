@@ -70,7 +70,11 @@
 <script>
     async function loadMarkdown() {
         try {
-            const response = await fetch("output/summary.md");
+            // const response = await fetch("output/summary.md");
+            const response = await fetch(
+                "https://drive.google.com/uc?export=download&id=102zTbmKFuZl7V-JPyPhO8Y37P1EUeOdF"
+            );
+
 
             if (!response.ok) {
                 throw new Error("Could not load summary.md");
