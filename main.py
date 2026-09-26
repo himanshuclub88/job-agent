@@ -1,8 +1,8 @@
 from __future__ import annotations
-
+import time
 import argparse
 from pathlib import Path
-
+from md import md_to_html
 from config import settings
 from gmail_client import GmailClient
 from classifier import classify_emails
@@ -56,9 +56,40 @@ def main() -> None:
     print(f"Generating {settings.output_file}...")
     print("Done.")
 
+    print("CONVERTING TO HTML")
+    print(f"Generating {settings.output_file_html}...")
+    md_to_html(settings.output_file,settings.output_file_html)
+    print("Done.")
+
     if args.print_output:
         print("\n" + markdown)
 
 
+
 if __name__ == "__main__":
+    start_time = time.perf_counter()
+
+    print("Job started...")
+
     main()
+
+    end_time = time.perf_counter()
+    elapsed = end_time - start_time
+
+    hours, remainder = divmod(int(elapsed), 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    parts = []
+
+    if hours:
+        parts.append(f"{hours} hour" + ("s" if hours != 1 else ""))
+
+    if minutes:
+        parts.append(f"{minutes} minute" + ("s" if minutes != 1 else ""))
+
+    if seconds or not parts:
+        parts.append(f"{seconds} second" + ("s" if seconds != 1 else ""))
+
+    duration = ", ".join(parts)
+
+    print(f"Job completed in {duration}.")

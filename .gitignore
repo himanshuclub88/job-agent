@@ -6,5 +6,6 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-output/*.md
+output/*.md 
+output/*.html
 .DS_Store

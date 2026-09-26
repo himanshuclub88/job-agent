@@ -25,6 +25,7 @@ class Settings:
     gmail_credentials_file: Path
     gmail_token_file: Path
     output_file: Path
+    output_file_html: Path
     state_file: Path
     timezone: str
 
@@ -40,6 +41,7 @@ settings = Settings(
     gmail_credentials_file=Path(os.getenv("GMAIL_CREDENTIALS_FILE", "credentials.json")),
     gmail_token_file=Path(os.getenv("GMAIL_TOKEN_FILE", "token.json")),
     output_file=Path(os.getenv("OUTPUT_FILE", "output/summary.md")),
+    output_file_html=Path(os.getenv("OUTPUT_FILE_HTML", "output/summary.html")),
     state_file=Path(os.getenv("STATE_FILE", "state.json")),
     timezone=os.getenv("TIMEZONE", "Asia/Kolkata"),
 )
