@@ -67,29 +67,28 @@
         Loading...
     </div>
 
-    <script>
-        async function loadMarkdown() {
-            try {
-                const response = await fetch("output\summary.md");
+<script>
+    async function loadMarkdown() {
+        try {
+            const response = await fetch("output/summary.md");
 
-                if (!response.ok) {
-                    throw new Error("Could not load gmail.md");
-                }
-
-                const markdown = await response.text();
-
-                // Convert Markdown → HTML
-                document.getElementById("content").innerHTML =
-                    marked.parse(markdown);
-
-            } catch (error) {
-                document.getElementById("content").innerHTML =
-                    `<p>Error: ${error.message}</p>`;
+            if (!response.ok) {
+                throw new Error("Could not load summary.md");
             }
-        }
 
-        loadMarkdown();
-    </script>
+            const markdown = await response.text();
+
+            document.getElementById("content").innerHTML =
+                marked.parse(markdown);
+
+        } catch (error) {
+            document.getElementById("content").innerHTML =
+                `<p>Error: ${error.message}</p>`;
+        }
+    }
+
+    loadMarkdown();
+</script>
 
 </body>
 </html>
