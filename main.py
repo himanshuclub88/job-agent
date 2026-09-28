@@ -10,7 +10,7 @@ from extractor import extract_job_events_from_emails
 from responsibility import analyze_today
 from markdown_generator import render_markdown
 from state import StateStore
-
+from future_events import FutureEventStore
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Minimal Gmail job-search daily responsibility agent")
@@ -59,13 +59,23 @@ def main() -> None:
     all_events = state.merge_events(cached, events)
 
     print("Analyzing current responsibilities...")
-    daily = analyze_today(all_events, today, settings)
+
+    future_store = FutureEventStore(settings.future_events_file)
+    future_events = future_store.load()
+
+    daily = analyze_today(
+        all_events,
+        today,
+        future_events,
+        settings
+    )
 
     markdown = render_markdown(daily, today)
     settings.output_file.parent.mkdir(parents=True, exist_ok=True)
     settings.output_file.write_text(markdown, encoding="utf-8")
 
     state.save(emails, all_events)
+    future_store.save(daily.upcoming)
 
     print(f"Generating {settings.output_file}...")
     print("Done.")
