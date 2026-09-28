@@ -10,3 +10,4 @@ venv/
 output/*.json
 output/*.html
 .DS_Store
+*.json
