@@ -20,7 +20,7 @@ def gmail_url(thread_id: str | None) -> str | None:
     if not thread_id:
         return None
 
-    return f"https://mail.google.com/mail/u/0/#all/{thread_id}"
+    return f"https://mail.google.com/mail/u/1/#all/{thread_id}"
 
 
 def action_button(
