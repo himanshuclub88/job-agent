@@ -1,16 +1,318 @@
 from __future__ import annotations
 
+import html
 from datetime import date
 from pathlib import Path
-from html import escape
 
 from models import DailySummary
 
 
-HTML_TEMPLATE = """
-<!DOCTYPE html>
+def esc(value: object | None) -> str:
+    """Safely escape text for HTML."""
+    if value is None:
+        return ""
+
+    return html.escape(str(value))
+
+
+def gmail_url(thread_id: str | None) -> str | None:
+    """Build a Gmail conversation URL from a thread ID."""
+    if not thread_id:
+        return None
+
+    return f"https://mail.google.com/mail/u/0/#all/{thread_id}"
+
+
+def action_button(
+    label: str,
+    url: str | None,
+    css_class: str = "action",
+) -> str:
+    """Render a clickable external link."""
+    if not url:
+        return ""
+
+    return f"""
+    <a class="{css_class}"
+       href="{esc(url)}"
+       target="_blank"
+       rel="noopener noreferrer">
+        {esc(label)}
+    </a>
+    """
+
+
+def email_button(thread_id: str | None) -> str:
+    """Render View Email button when a Gmail thread is available."""
+    url = gmail_url(thread_id)
+
+    if not url:
+        return ""
+
+    return f"""
+    <a class="email-action"
+       href="{esc(url)}"
+       target="_blank"
+       rel="noopener noreferrer">
+        View Email
+    </a>
+    """
+
+
+def render_responsibility(item) -> str:
+    buttons = ""
+
+    if item.link:
+        buttons += action_button("Open", item.link)
+
+    buttons += email_button(item.thread_id)
+
+    deadline = ""
+
+    if item.deadline:
+        deadline = f"""
+        <div class="meta">
+            <span class="badge badge-danger">
+                Due: {esc(item.deadline)}
+            </span>
+        </div>
+        """
+
+    recruiter = ""
+
+    if item.recruiter:
+        recruiter = f"""
+        <div class="recruiter">
+            Recruiter: {esc(item.recruiter)}
+        </div>
+        """
+
+    job_title = ""
+
+    if item.job_title:
+        job_title = f"""
+        <div class="job-title">
+            {esc(item.job_title)}
+        </div>
+        """
+
+    return f"""
+    <div class="card">
+
+        <div class="card-header">
+            <div>
+                <div class="company">
+                    {esc(item.company or "Unknown company")}
+                </div>
+
+                {job_title}
+            </div>
+        </div>
+
+        <div class="card-text">
+            {esc(item.text)}
+        </div>
+
+        {deadline}
+
+        {recruiter}
+
+        <div class="actions">
+            {buttons}
+        </div>
+
+    </div>
+    """
+
+
+def render_upcoming(item) -> str:
+    date_value = esc(item.date or "Upcoming")
+    time_value = esc(item.time or "")
+
+    buttons = ""
+
+    if item.link:
+        buttons += action_button("Open", item.link)
+
+    buttons += email_button(item.thread_id)
+
+    job_title = ""
+
+    if item.job_title:
+        job_title = f" — {esc(item.job_title)}"
+
+    return f"""
+    <div class="timeline-item">
+
+        <div class="timeline-date">
+            {date_value}
+        </div>
+
+        <div class="timeline-content">
+
+            <div class="timeline-company">
+                {esc(item.company or "Unknown company")}
+                {job_title}
+            </div>
+
+            <div class="timeline-text">
+                {esc(item.text)}
+            </div>
+
+        </div>
+
+        <div class="timeline-actions">
+
+            <div class="timeline-time">
+                {time_value}
+            </div>
+
+            {buttons}
+
+        </div>
+
+    </div>
+    """
+
+
+def render_update(item) -> str:
+    button = email_button(item.thread_id)
+
+    return f"""
+    <div class="update">
+
+        <div class="update-content">
+            {esc(item.text)}
+        </div>
+
+        {button}
+
+    </div>
+    """
+
+
+def render_opportunity(item) -> str:
+    buttons = ""
+
+    if item.url:
+        buttons += action_button("View Job", item.url)
+
+    buttons += email_button(item.thread_id)
+
+    location = ""
+
+    if item.location:
+        location = f"""
+        <div class="opportunity-location">
+            {esc(item.location)}
+        </div>
+        """
+
+    source = ""
+
+    if item.source:
+        source = f"""
+        <div class="opportunity-source">
+            Source: {esc(item.source)}
+        </div>
+        """
+
+    return f"""
+    <div class="opportunity">
+
+        <div class="opportunity-company">
+            {esc(item.company or "Unknown company")}
+        </div>
+
+        <div class="opportunity-title">
+            {esc(item.job_title or "")}
+        </div>
+
+        {location}
+
+        {source}
+
+        <div class="actions">
+            {buttons}
+        </div>
+
+    </div>
+    """
+
+
+def render_empty(text: str) -> str:
+    return f"""
+    <div class="empty">
+        {esc(text)}
+    </div>
+    """
+
+
+def generate_html(
+    daily: DailySummary,
+    today: date,
+    output_file: Path,
+) -> None:
+
+    responsibilities = "".join(
+        render_responsibility(item)
+        for item in daily.responsibilities
+    )
+
+    if not responsibilities:
+        responsibilities = render_empty(
+            "No responsibilities for today."
+        )
+
+    upcoming = "".join(
+        render_upcoming(item)
+        for item in daily.upcoming
+    )
+
+    if not upcoming:
+        upcoming = render_empty(
+            "No upcoming events."
+        )
+
+    updates = "".join(
+        render_update(item)
+        for item in daily.updates
+    )
+
+    if not updates:
+        updates = render_empty(
+            "No important updates."
+        )
+
+    opportunities = "".join(
+        render_opportunity(item)
+        for item in daily.opportunities
+    )
+
+    if not opportunities:
+        opportunities = render_empty(
+            "No new opportunities."
+        )
+
+    dont_miss = "".join(
+        f"""
+        <div class="dont-miss-item">
+            {esc(item)}
+        </div>
+        """
+        for item in daily.dont_miss
+    )
+
+    if not dont_miss:
+        dont_miss = render_empty(
+            "Nothing critical to highlight."
+        )
+
+    html_document = f"""<!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
@@ -36,7 +338,7 @@ HTML_TEMPLATE = """
 
     --success: #059669;
     --success-light: #ecfdf5;
-
+    
     --purple: #7c3aed;
     --purple-light: #f5f3ff;
 
@@ -66,6 +368,7 @@ body {{
     padding: 35px 0 60px;
 }}
 
+
 /* HEADER */
 
 .header {{
@@ -93,6 +396,7 @@ body {{
     font-size: 14px;
 }}
 
+
 /* SECTION */
 
 .section {{
@@ -119,6 +423,7 @@ body {{
     padding: 3px 8px;
     border-radius: 20px;
 }}
+
 
 /* CARDS */
 
@@ -180,42 +485,45 @@ body {{
     font-weight: 600;
 }}
 
-.badge-date {{
-    background: var(--primary-light);
-    color: var(--primary);
-}}
-
 .badge-danger {{
     background: var(--danger-light);
     color: var(--danger);
 }}
 
-.badge-warning {{
-    background: var(--warning-light);
-    color: var(--warning);
-}}
 
-.badge-success {{
-    background: var(--success-light);
-    color: var(--success);
-}}
+/* BUTTONS */
 
-/* LINKS */
-
-.action {{
-    display: inline-block;
+.actions {{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
     margin-top: 15px;
+}}
+
+.action,
+.email-action {{
+    display: inline-block;
     padding: 8px 13px;
     border-radius: 7px;
-    background: var(--primary);
-    color: white;
     text-decoration: none;
     font-size: 12px;
     font-weight: 600;
 }}
 
-.action:hover {{
-    opacity: 0.9;
+.action {{
+    background: var(--primary);
+    color: white;
+}}
+
+.email-action {{
+    background: #f3f4f6;
+    color: #374151;
+    border: 1px solid var(--border);
+}}
+
+.action:hover,
+.email-action:hover {{
+    opacity: 0.88;
 }}
 
 .recruiter {{
@@ -223,6 +531,7 @@ body {{
     font-size: 12px;
     margin-top: 10px;
 }}
+
 
 /* UPCOMING */
 
@@ -268,10 +577,16 @@ body {{
     margin-top: 3px;
 }}
 
+.timeline-actions {{
+    text-align: right;
+}}
+
 .timeline-time {{
     color: var(--muted);
     font-size: 12px;
+    margin-bottom: 7px;
 }}
+
 
 /* UPDATES */
 
@@ -283,6 +598,10 @@ body {{
 }}
 
 .update {{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 15px;
     padding: 15px 20px;
     border-bottom: 1px solid var(--border);
     font-size: 14px;
@@ -292,12 +611,17 @@ body {{
     border-bottom: none;
 }}
 
-.update::before {{
+.update-content {{
+    flex: 1;
+}}
+
+.update-content::before {{
     content: "•";
     color: var(--primary);
     font-weight: bold;
     margin-right: 10px;
 }}
+
 
 /* OPPORTUNITIES */
 
@@ -338,6 +662,7 @@ body {{
     margin-top: 7px;
 }}
 
+
 /* DON'T MISS */
 
 .dont-miss {{
@@ -357,20 +682,6 @@ body {{
     border-bottom: none;
 }}
 
-.dont-miss-item::before {{
-    content: "!";
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    width: 19px;
-    height: 19px;
-    margin-right: 9px;
-    border-radius: 50%;
-    background: var(--danger);
-    color: white;
-    font-size: 11px;
-    font-weight: bold;
-}}
 
 /* EMPTY */
 
@@ -384,6 +695,7 @@ body {{
     font-size: 13px;
 }}
 
+
 /* FOOTER */
 
 .footer {{
@@ -392,6 +704,7 @@ body {{
     color: #9ca3af;
     font-size: 11px;
 }}
+
 
 /* RESPONSIVE */
 
@@ -409,14 +722,20 @@ body {{
         grid-template-columns: 85px 1fr;
     }}
 
-    .timeline-time {{
+    .timeline-actions {{
         grid-column: 2;
+        text-align: left;
     }}
 
     .header {{
         align-items: flex-start;
         flex-direction: column;
         gap: 8px;
+    }}
+
+    .update {{
+        align-items: flex-start;
+        flex-direction: column;
     }}
 }}
 
@@ -440,326 +759,136 @@ body {{
         gap: 5px;
     }}
 
-    .timeline-time {{
+    .timeline-actions {{
         grid-column: auto;
     }}
 }}
 
 </style>
+
 </head>
 
 <body>
 
 <div class="container">
 
-    <header class="header">
-        <div>
-            <h1>Job Search Dashboard</h1>
-            <div class="subtitle">
-                Your daily job-search command center
-            </div>
+<header class="header">
+
+    <div>
+        <h1>Job Search Dashboard</h1>
+
+        <div class="subtitle">
+            Your daily job-search command center
         </div>
-
-        <div class="date">
-            {date}
-        </div>
-    </header>
-
-    {responsibilities}
-
-    {upcoming}
-
-    {updates}
-
-    {opportunities}
-
-    {dont_miss}
-
-    <div class="footer">
-        Generated by Job Search Agent
     </div>
+
+    <div class="date">
+        {today.strftime("%d %B %Y")}
+    </div>
+
+</header>
+
+
+<!-- RESPONSIBILITIES -->
+
+<section class="section">
+
+    <div class="section-title">
+        <h2>Today's Responsibilities</h2>
+        <span class="section-count">
+            {len(daily.responsibilities)}
+        </span>
+    </div>
+
+    <div class="grid">
+        {responsibilities}
+    </div>
+
+</section>
+
+
+<!-- UPCOMING -->
+
+<section class="section">
+
+    <div class="section-title">
+        <h2>Upcoming</h2>
+        <span class="section-count">
+            {len(daily.upcoming)}
+        </span>
+    </div>
+
+    <div class="timeline">
+        {upcoming}
+    </div>
+
+</section>
+
+
+<!-- UPDATES -->
+
+<section class="section">
+
+    <div class="section-title">
+        <h2>Important Updates</h2>
+        <span class="section-count">
+            {len(daily.updates)}
+        </span>
+    </div>
+
+    <div class="update-list">
+        {updates}
+    </div>
+
+</section>
+
+
+<!-- OPPORTUNITIES -->
+
+<section class="section">
+
+    <div class="section-title">
+        <h2>Opportunities</h2>
+        <span class="section-count">
+            {len(daily.opportunities)}
+        </span>
+    </div>
+
+    <div class="opportunity-grid">
+        {opportunities}
+    </div>
+
+</section>
+
+
+<!-- DON'T MISS -->
+
+<section class="section">
+
+    <div class="section-title">
+        <h2>Don't Miss</h2>
+        <span class="section-count">
+            {len(daily.dont_miss)}
+        </span>
+    </div>
+
+    <div class="dont-miss">
+        {dont_miss}
+    </div>
+
+</section>
+
+
+<div class="footer">
+    Generated by Job Search Agent
+</div>
 
 </div>
 
 </body>
+
 </html>
 """
-
-
-def _section_title(title: str, count: int) -> str:
-    return f"""
-    <div class="section-title">
-        <h2>{escape(title)}</h2>
-        <span class="section-count">{count}</span>
-    </div>
-    """
-
-
-def _generate_responsibilities(daily: DailySummary) -> str:
-
-    if not daily.responsibilities:
-        return ""
-
-    cards = []
-
-    for item in daily.responsibilities:
-
-        company = escape(item.company or "Unknown company")
-        job_title = escape(item.job_title or "")
-        text = escape(item.text)
-
-        card = f"""
-        <div class="card">
-
-            <div class="card-header">
-                <div>
-                    <div class="company">{company}</div>
-                    {f'<div class="job-title">{job_title}</div>' if job_title else ''}
-                </div>
-            </div>
-
-            <div class="card-text">
-                {text}
-            </div>
-        """
-
-        if item.deadline:
-            card += f"""
-            <div class="meta">
-                <span class="badge badge-danger">
-                    Due: {escape(item.deadline)}
-                </span>
-            </div>
-            """
-
-        if item.recruiter:
-            card += f"""
-            <div class="recruiter">
-                Recruiter: {escape(item.recruiter)}
-            </div>
-            """
-
-        if item.link:
-            card += f"""
-            <a class="action"
-               href="{escape(item.link, quote=True)}"
-               target="_blank"
-               rel="noopener noreferrer">
-                Open
-            </a>
-            """
-
-        card += "</div>"
-
-        cards.append(card)
-
-    return f"""
-    <section class="section">
-
-        {_section_title("Today's Responsibilities", len(cards))}
-
-        <div class="grid">
-            {''.join(cards)}
-        </div>
-
-    </section>
-    """
-
-
-def _generate_upcoming(daily: DailySummary) -> str:
-
-    if not daily.upcoming:
-        return ""
-
-    items = []
-
-    for item in daily.upcoming:
-
-        company = escape(item.company or "Unknown company")
-        job_title = escape(item.job_title or "")
-        text = escape(item.text)
-
-        date_text = escape(item.date or "Upcoming")
-        time_text = escape(item.time or "")
-
-        link = ""
-
-        if item.link:
-            link = f"""
-            <a class="action"
-               href="{escape(item.link, quote=True)}"
-               target="_blank"
-               rel="noopener noreferrer">
-                Open
-            </a>
-            """
-
-        items.append(f"""
-        <div class="timeline-item">
-
-            <div class="timeline-date">
-                {date_text}
-            </div>
-
-            <div class="timeline-content">
-
-                <div class="timeline-company">
-                    {company}
-                    {f" — {job_title}" if job_title else ""}
-                </div>
-
-                <div class="timeline-text">
-                    {text}
-                </div>
-
-            </div>
-
-            <div class="timeline-time">
-                {time_text}
-                {link}
-            </div>
-
-        </div>
-        """)
-
-    return f"""
-    <section class="section">
-
-        {_section_title("Upcoming", len(items))}
-
-        <div class="timeline">
-            {''.join(items)}
-        </div>
-
-    </section>
-    """
-
-
-def _generate_updates(daily: DailySummary) -> str:
-
-    if not daily.updates:
-        return ""
-
-    items = []
-
-    for update in daily.updates:
-        items.append(
-            f'<div class="update">{escape(update.text)}</div>'
-        )
-
-    return f"""
-    <section class="section">
-
-        {_section_title("Important Updates", len(items))}
-
-        <div class="update-list">
-            {''.join(items)}
-        </div>
-
-    </section>
-    """
-
-
-def _generate_opportunities(daily: DailySummary) -> str:
-
-    if not daily.opportunities:
-        return ""
-
-    cards = []
-
-    for item in daily.opportunities:
-
-        company = escape(item.company or "Unknown company")
-        job_title = escape(item.job_title or "")
-        location = escape(item.location or "")
-        source = escape(item.source or "")
-
-        card = f"""
-        <div class="opportunity">
-
-            <div class="opportunity-company">
-                {company}
-            </div>
-
-            {f'<div class="opportunity-title">{job_title}</div>' if job_title else ''}
-
-            {f'<div class="opportunity-location">{location}</div>' if location else ''}
-
-            {f'<div class="opportunity-source">Source: {source}</div>' if source else ''}
-        """
-
-        if item.url:
-            card += f"""
-            <a class="action"
-               href="{escape(item.url, quote=True)}"
-               target="_blank"
-               rel="noopener noreferrer">
-                View Job
-            </a>
-            """
-
-        card += "</div>"
-
-        cards.append(card)
-
-    return f"""
-    <section class="section">
-
-        {_section_title("Opportunities", len(cards))}
-
-        <div class="opportunity-grid">
-            {''.join(cards)}
-        </div>
-
-    </section>
-    """
-
-
-def _generate_dont_miss(daily: DailySummary) -> str:
-
-    if not daily.dont_miss:
-        return ""
-
-    items = []
-
-    for item in daily.dont_miss:
-        items.append(
-            f'<div class="dont-miss-item">{escape(item)}</div>'
-        )
-
-    return f"""
-    <section class="section">
-
-        {_section_title("Don't Miss", len(items))}
-
-        <div class="dont-miss">
-            {''.join(items)}
-        </div>
-
-    </section>
-    """
-
-
-def generate_html(
-    daily: DailySummary,
-    today: date,
-    output_file: Path,
-) -> None:
-
-    responsibilities = _generate_responsibilities(daily)
-    upcoming = _generate_upcoming(daily)
-    updates = _generate_updates(daily)
-    opportunities = _generate_opportunities(daily)
-    dont_miss = _generate_dont_miss(daily)
-
-    html = HTML_TEMPLATE.format(
-        date=today.strftime("%d %B %Y"),
-        responsibilities=responsibilities,
-        upcoming=upcoming,
-        updates=updates,
-        opportunities=opportunities,
-        dont_miss=dont_miss,
-    )
 
     output_file.parent.mkdir(
         parents=True,
@@ -767,10 +896,6 @@ def generate_html(
     )
 
     output_file.write_text(
-        html,
+        html_document,
         encoding="utf-8",
     )
-
-
-if __name__ == "__main__":
-    print("html_generator.py loaded successfully.")
