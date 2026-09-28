@@ -2,7 +2,6 @@ from __future__ import annotations
 import time
 import argparse
 from pathlib import Path
-from md import md_to_html
 from config import settings
 from gmail_client import GmailClient
 from classifier import classify_emails
@@ -69,14 +68,7 @@ def main() -> None:
     state.save(emails, all_events)
     future_store.save(daily.upcoming)
 
-    print(f"Generating {settings.output_file}...")
-    markdown = render_markdown(daily, today)
-    settings.output_file.parent.mkdir(parents=True, exist_ok=True)
-    settings.output_file.write_text(markdown,encoding="utf-8")
 
-    print(f"Generating {settings.output_file_html}...")
-    md_to_html(settings.output_file,settings.output_file_html)
-    print("Done.")
 
     if args.print_output:
         print("\n" + markdown)
