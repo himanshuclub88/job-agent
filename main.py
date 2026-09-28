@@ -33,8 +33,6 @@ def main() -> None:
     # Stop the entire job if there are no emails
     if not emails:
         print("No emails found. Nothing to analyze.")
-        print("Job stopped.")
-        return
 
 
     state = StateStore(settings.state_file)
@@ -47,8 +45,6 @@ def main() -> None:
     # Stop the entire job if there are no emails
     if not relevant:
         print("No Job-related emails found. Nothing to analyze.")
-        print("Job stopped.")
-        return
 
 
     events = extract_job_events_from_emails(emails, relevant, settings)
@@ -70,14 +66,13 @@ def main() -> None:
         settings
     )
 
-    markdown = render_markdown(daily, today)
-    settings.output_file.parent.mkdir(parents=True, exist_ok=True)
-    settings.output_file.write_text(markdown, encoding="utf-8")
-
     state.save(emails, all_events)
     future_store.save(daily.upcoming)
 
     print(f"Generating {settings.output_file}...")
+    markdown = render_markdown(daily, today)
+    settings.output_file.parent.mkdir(parents=True, exist_ok=True)
+    settings.output_file.write_text(markdown, encoding="utf-8")
     print("Done.")
 
     print("CONVERTING TO HTML")
