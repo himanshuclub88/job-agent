@@ -85,11 +85,21 @@ def analyze_today(
     user_input = f"""
 CURRENT_DATE: {today.isoformat()}
 
-EVENTS FROM CURRENT 7-DAY CONTEXT:
-
+CURRENT 7-DAY JOB EVENTS:
 {event_text}
 
-Determine the current job-search state relevant TODAY.
+SAVED FUTURE EVENTS:
+{future_text}
+
+Use both the current job events and the saved future events
+to determine the current job-search state relevant TODAY.
+
+Important:
+- Saved future events may have come from previous runs.
+- If a newer event changes, cancels, completes, or reschedules
+  a saved future event, use the newer event.
+- Do not blindly duplicate saved future events.
+- Keep only genuinely upcoming items in the upcoming section.
 """
 
     result: ResponsibilityResult = chain.invoke(
