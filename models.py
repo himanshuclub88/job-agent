@@ -84,6 +84,8 @@ class DailyResponsibility(BaseModel):
     deadline: str | None = None
     link: str | None = None
     recruiter: str | None = None
+    email_subject: str | None = None
+    email_sender: str | None = None
 
 
 class UpcomingItem(BaseModel):
@@ -93,10 +95,14 @@ class UpcomingItem(BaseModel):
     date: str | None = None
     time: str | None = None
     link: str | None = None
+    email_subject: str | None = None
+    email_sender: str | None = None
 
 
 class ImportantUpdate(BaseModel):
     text: str
+    email_subject: str | None = None
+    email_sender: str | None = None
 
 
 class Opportunity(BaseModel):
@@ -105,6 +111,8 @@ class Opportunity(BaseModel):
     location: str | None = None
     url: str | None = None
     source: str | None = None
+    email_subject: str | None = None
+    email_sender: str | None = None
 
 
 class DailySummary(BaseModel):
