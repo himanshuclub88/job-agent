@@ -2,6 +2,7 @@
 credentials.json
 token.json
 state.json
+future_events.json
 __pycache__/
 *.pyc
 .venv/

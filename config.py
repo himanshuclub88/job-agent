@@ -27,6 +27,7 @@ class Settings:
     output_file: Path
     output_file_html: Path
     state_file: Path
+    future_events_file: Path
     timezone: str
 
     @property
@@ -43,5 +44,6 @@ settings = Settings(
     output_file=Path(os.getenv("OUTPUT_FILE", "output/summary.md")),
     output_file_html=Path(os.getenv("OUTPUT_FILE_HTML", "output/summary.html")),
     state_file=Path(os.getenv("STATE_FILE", "state.json")),
+    future_events_file = Path("FUTURE_STATE_FILE","future_events.json"),
     timezone=os.getenv("TIMEZONE", "Asia/Kolkata"),
 )
