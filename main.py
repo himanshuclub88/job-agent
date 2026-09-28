@@ -7,7 +7,7 @@ from gmail_client import GmailClient
 from classifier import classify_emails
 from extractor import extract_job_events_from_emails
 from responsibility import analyze_today
-from markdown_generator import render_markdown
+from html_generator import generate_html
 from state import StateStore
 from future_events import FutureEventStore
 
@@ -69,9 +69,17 @@ def main() -> None:
     future_store.save(daily.upcoming)
 
 
+    print(f"Generating {settings.output_file_json}...")
+    settings.output_file_json.parent.mkdir(parents=True, exist_ok=True)
+    settings.output_file_json.write_text(daily.model_dump_json(indent=2), encoding="utf-8")
+    print("JSON generated.")
+
+    print(f"Generating {settings.output_file_html}...")
+    generate_html(daily,today,settings.output_file_html)
+    print("HTML generated.")
 
     if args.print_output:
-        print("\n" + markdown)
+        print("\n" + daily.model_dump_json(indent=2))
 
 
 
