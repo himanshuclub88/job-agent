@@ -72,10 +72,8 @@ def main() -> None:
     print(f"Generating {settings.output_file}...")
     markdown = render_markdown(daily, today)
     settings.output_file.parent.mkdir(parents=True, exist_ok=True)
-    settings.output_file.write_text(markdown, encoding="utf-8")
-    print("Done.")
+    settings.output_file.write_text(markdown,encoding="utf-8")
 
-    print("CONVERTING TO HTML")
     print(f"Generating {settings.output_file_html}...")
     md_to_html(settings.output_file,settings.output_file_html)
     print("Done.")
