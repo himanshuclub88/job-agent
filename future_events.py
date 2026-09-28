@@ -34,6 +34,7 @@ class FutureEventStore:
         return result
 
     def save(self, upcoming: list[UpcomingItem]) -> None:
+        print("PATH OF FUTRE EVENTS STORE",self.path)
         self.data = [
             item.model_dump(mode="json")
             for item in upcoming
