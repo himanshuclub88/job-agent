@@ -5,7 +5,7 @@ from datetime import date
 from pydantic import BaseModel
 
 from llm import build_structured_chain
-from models import DailySummary, JobEvent
+from models import DailySummary, JobEvent, UpcomingItem
 
 
 class ResponsibilityResult(BaseModel):
@@ -60,6 +60,7 @@ only surface it.
 def analyze_today(
     events: list[JobEvent],
     today: date,
+    future_events: list[UpcomingItem] | None = None,
     settings=None,
 ) -> DailySummary:
 
@@ -74,6 +75,11 @@ def analyze_today(
     event_text = "\n\n".join(
         event.model_dump_json()
         for event in events
+    )
+
+    future_text = "\n\n".join(
+        event.model_dump_json()
+        for event in future_events
     )
 
     user_input = f"""
