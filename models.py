@@ -48,6 +48,8 @@ class JobEvent(BaseModel):
     thread_id: str
     received_at: datetime
     category: Category
+    email_subject: str | None = None
+    email_sender: str | None = None
 
     company: str | None = None
     job_title: str | None = None
