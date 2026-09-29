@@ -1,11 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     /* --- State & Config --- */
     const API_URL = "http://localhost:8000/api/summary";
+    const API_RUN_PIPELINE = "http://localhost:8000/api/run-pipeline";
+    const API_PIPELINE_STATUS = "http://localhost:8000/api/pipeline-status";
     
     // Pipeline state
     let isPipelineRunning = false;
     let pipelineStartTime = 0;
-    let progressTimer = null;
+    let localProgressTimer = null;
+    let serverPollTimer = null;
     let devForceComplete = false;
 
     // Fallback Data
@@ -15,19 +18,16 @@ document.addEventListener('DOMContentLoaded', () => {
             { "company": "I Novate", "job_title": "Lead AI Engineers", "text": "Apply for urgent AI Engineer openings", "recruiter": "Pankaj Kumar Gupta", "thread_id": "1a0d95ef59891a69" }
         ],
         "opportunities": [
-            { "company": "Innovya Tech", "job_title": "Data Engineer", "location": "Pune", "source": "LinkedIn", "thread_id": "1a0eb3062ea6fd10", "url":"#" },
-            { "company": "Infosys", "job_title": "Gen AI Developer", "location": "Hyderabad", "source": "Naukri", "thread_id": "1a0dc591294bfb37", "url":"#" }
+            { "company": "Innovya Tech", "job_title": "Data Engineer", "location": "Pune", "source": "LinkedIn", "thread_id": "1a0eb3062ea6fd10", "url":"#" }
         ],
         "updates": [
-            { "text": "Applied for 2 jobs on 23 Sep, including Lead AI Engineer at Virtusa.", "thread_id": "1a0d078501b3a6ea" },
-            { "text": "Profile appeared in 9 searches by companies like TCS, Wipro.", "thread_id": "1a0d395d62187171" }
+            { "text": "Applied for 2 jobs on 23 Sep, including Lead AI Engineer at Virtusa.", "thread_id": "1a0d078501b3a6ea" }
         ],
         "upcoming": [
             { "company": "Databricks", "job_title": "Certification", "text": "Assessment scheduled.", "date": "2026-11-10", "time": "14:00 IST", "link": "#" }
         ],
         "dont_miss": [
-            "Complete the Adecco feedback survey by the deadline on 2026-10-04.",
-            "Prepare for the Databricks Certified Data Engineer Professional assessment."
+            "Complete the Adecco feedback survey by the deadline on 2026-10-04."
         ]
     };
 
@@ -84,7 +84,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         document.getElementById('close-settings-btn').addEventListener('click', () => closeModal('settings-modal'));
         
-        // Settings Listeners
         document.getElementById('theme-select').addEventListener('change', (e) => {
             document.documentElement.setAttribute('data-theme', e.target.value);
             localStorage.setItem('theme', e.target.value);
@@ -94,7 +93,7 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('textSize', e.target.value);
         });
 
-        // Pipeline Modal
+        // Pipeline Modal Logic
         document.getElementById('nav-run-pipeline').addEventListener('click', (e) => {
             e.preventDefault();
             openModal('pipeline-modal');
@@ -104,10 +103,23 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 document.getElementById('pipeline-config-view').classList.remove('hidden');
                 document.getElementById('pipeline-progress-view').classList.add('hidden');
+                // Reset UI in case it was previously finished
+                document.getElementById('progress-spinner').classList.remove('hidden');
+                document.getElementById('progress-success').classList.add('hidden');
+                document.getElementById('completion-stats').classList.add('hidden');
+                document.getElementById('pipeline-done-actions').classList.add('hidden');
+                document.getElementById('progress-status-text').textContent = "Extracting emails & analyzing data...";
+                document.getElementById('progress-subtext').classList.remove('hidden');
+                document.getElementById('progress-fill').style.width = '0%';
+                document.getElementById('progress-percentage').textContent = '0%';
+                document.getElementById('progress-time').textContent = '0:00';
             }
         });
+        
         document.getElementById('close-pipeline-btn').addEventListener('click', () => closeModal('pipeline-modal'));
-        document.getElementById('cancel-pipeline-btn').addEventListener('click', () => closeModal('pipeline-modal'));
+        document.getElementById('done-pipeline-btn').addEventListener('click', () => closeModal('pipeline-modal'));
+        
+        // No more cancel button on config view. Modals can be closed by clicking the X or overlay.
         document.getElementById('modal-overlay').addEventListener('click', () => {
             closeModal('pipeline-modal');
             closeModal('settings-modal');
@@ -136,7 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderUI(data) {
-        // Notifications
         if (data.dont_miss && data.dont_miss.length > 0) {
             document.getElementById('notif-badge').textContent = data.dont_miss.length;
             document.getElementById('notif-list').innerHTML = data.dont_miss.map(alert => `
@@ -149,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('notif-list').innerHTML = '<div style="padding:15px;text-align:center;color:gray;">All caught up!</div>';
         }
 
-        // Responsibilities
         renderRows('responsibilities-list', 'resp-count', data.responsibilities, item => {
             const emailUrl = `https://mail.google.com/mail/u/1/#all/${item.thread_id}`;
             return `
@@ -168,7 +178,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
         });
 
-        // Opportunities
         renderRows('opportunities-list', 'opp-count', data.opportunities, item => {
             const emailUrl = `https://mail.google.com/mail/u/1/#all/${item.thread_id}`;
             return `
@@ -188,7 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
         });
 
-        // Updates
         renderRows('updates-list', 'update-count', data.updates, item => `
             <div class="feed-item">
                 <div class="feed-meta">Update</div>
@@ -197,7 +205,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>
         `);
 
-        // Upcoming
         renderRows('upcoming-list', 'upc-count', data.upcoming, item => `
             <div class="feed-item">
                 <div class="feed-meta"><i class="fa-regular fa-clock"></i> ${item.date || ''} ${item.time ? 'at ' + item.time : ''}</div>
@@ -231,19 +238,27 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(id).classList.add('hidden');
     }
 
-    function startPipeline() {
+    async function startPipeline() {
+        const startBtn = document.getElementById('start-pipeline-btn');
+        startBtn.disabled = true; // Disable to prevent double click
+        
+        try {
+            // Trigger backend (ignore failure for UI simulation if backend is off)
+            fetch(API_RUN_PIPELINE, { method: 'POST' }).catch(e => console.log('Backend not available. Simulating.'));
+        } catch(e) {}
+
         document.getElementById('pipeline-config-view').classList.add('hidden');
         document.getElementById('pipeline-progress-view').classList.remove('hidden');
         
         isPipelineRunning = true;
         pipelineStartTime = Date.now();
         devForceComplete = false;
-        document.getElementById('progress-status-text').textContent = "Extracting emails & analyzing data...";
         
-        progressTimer = setInterval(updateProgress, 1000);
+        // Local interval for smooth visual progress bar update
+        localProgressTimer = setInterval(updateVisualProgress, 1000);
         
-        // Mock backend request simulation
-        // In reality, you would await a fetch('/api/run-pipeline') here.
+        // Polling interval to check backend status
+        serverPollTimer = setInterval(pollServerStatus, 3000);
     }
 
     function formatTime(seconds) {
@@ -252,25 +267,23 @@ document.addEventListener('DOMContentLoaded', () => {
         return m + ":" + (s < 10 ? "0" : "") + s;
     }
 
-    function updateProgress() {
+    function updateVisualProgress() {
         if (!isPipelineRunning) return;
         
         const elapsedSec = (Date.now() - pipelineStartTime) / 1000;
         let p = 0;
 
         if (devForceComplete) {
-            finishPipeline();
+            finishPipeline("Simulated fast forward.");
             return;
         }
 
         if (elapsedSec < 600) {
-            // First 10 minutes (600s): go from 0 to 90%
             p = (elapsedSec / 600) * 90;
         } else {
-            // After 10 minutes: 90% to 99% (1% every 1 minute = 60s)
             let extraMin = (elapsedSec - 600) / 60;
             p = 90 + extraMin;
-            if (p > 99) p = 99; // Stuck at 99%
+            if (p > 99) p = 99; // Stuck at 99% until server says done
         }
 
         document.getElementById('progress-fill').style.width = p + '%';
@@ -278,22 +291,52 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('progress-time').textContent = formatTime(elapsedSec);
     }
 
-    function finishPipeline() {
-        clearInterval(progressTimer);
-        document.getElementById('progress-fill').style.width = '100%';
-        document.getElementById('progress-percentage').textContent = '100%';
-        document.getElementById('progress-status-text').textContent = "Pipeline completed successfully!";
+    async function pollServerStatus() {
+        if (!isPipelineRunning) return;
         
-        setTimeout(() => {
-            isPipelineRunning = false;
-            closeModal('pipeline-modal');
-            // reset form for next time
-            document.getElementById('pipeline-config-view').classList.remove('hidden');
-            document.getElementById('pipeline-progress-view').classList.add('hidden');
-            document.getElementById('progress-fill').style.width = '0%';
-        }, 2500);
+        try {
+            const res = await fetch(API_PIPELINE_STATUS);
+            if (res.ok) {
+                const status = await res.json();
+                
+                // If backend says it is finished and provides a duration
+                if (status.is_running === false && status.duration_str) {
+                    finishPipeline(status.duration_str, status.message);
+                }
+            }
+        } catch (e) {
+            // Backend offline, just rely on devForceComplete for simulation
+        }
     }
 
-    // Run
+    function finishPipeline(durationStr, messageOverride = null) {
+        clearInterval(localProgressTimer);
+        clearInterval(serverPollTimer);
+        
+        isPipelineRunning = false;
+        document.getElementById('start-pipeline-btn').disabled = false; // re-enable for next time
+        
+        // Jump to 100%
+        document.getElementById('progress-fill').style.width = '100%';
+        document.getElementById('progress-percentage').textContent = '100%';
+        
+        // Update UI to success state
+        document.getElementById('progress-spinner').classList.add('hidden');
+        document.getElementById('progress-success').classList.remove('hidden');
+        document.getElementById('progress-status-text').textContent = messageOverride || "Pipeline completed successfully!";
+        document.getElementById('progress-subtext').classList.add('hidden');
+        
+        // Show actual duration stats panel
+        const statsPanel = document.getElementById('completion-stats');
+        statsPanel.classList.remove('hidden');
+        document.getElementById('final-duration-text').textContent = `Task took ${durationStr}`;
+        
+        // Show close button
+        document.getElementById('pipeline-done-actions').classList.remove('hidden');
+        
+        // Reload dashboard data
+        fetchData();
+    }
+
     init();
 });
