@@ -43,6 +43,12 @@
                 </div>
                 
                 <div class="header-actions">
+                    <!-- Search Bar -->
+                    <div class="search-box">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input type="text" id="dashboard-search" placeholder="Search roles, companies, recruiters...">
+                    </div>
+
                     <div class="dropdown-wrapper" id="notif-wrapper">
                         <button class="icon-btn" id="notif-btn">
                             <i class="fa-regular fa-bell"></i>
@@ -57,10 +63,20 @@
                     </div>
                     
                     <div class="user-profile">
-                        <img src="https://ui-avatars.com/api/?name=Himanshu+Singh&background=random&color=fff&bold=true" alt="HS" id="user-avatar">
+                        <img src="https://ui-avatars.com/api/?name=Himanshu+Singh&background=4F46E5&color=fff&bold=true" alt="HS" id="user-avatar">
                     </div>
                 </div>
             </header>
+
+            <!-- Quick Filter Chips -->
+            <div class="filter-bar">
+                <span class="filter-label"><i class="fa-solid fa-filter"></i> Filters:</span>
+                <button class="filter-chip active" data-filter="all">All</button>
+                <button class="filter-chip" data-filter="ai">AI / GenAI</button>
+                <button class="filter-chip" data-filter="data">Data Engineer</button>
+                <button class="filter-chip" data-filter="remote">Remote</button>
+                <button class="filter-chip" data-filter="action">Outreach / DM</button>
+            </div>
 
             <div class="dashboard-grid">
                 <!-- Column 1: Main Tasks & Opportunities -->
@@ -148,31 +164,45 @@
         
         <!-- State 1: Configuration -->
         <div class="modal-body" id="pipeline-config-view">
-            <p class="text-muted" style="line-height: 1.5;">Start the automated email extraction and AI job search agent. This process analyzes your latest emails and extracts actionable insights.</p>
-            <div class="form-group" style="margin-top: 25px;">
+            <p class="text-muted" style="line-height: 1.5;">Execute the agent pipeline to fetch Gmail messages, classify relevant job emails, and refresh action items.</p>
+            
+            <div class="form-group" style="margin-top: 18px;">
                 <label>Run for Date:</label>
                 <div id="pipeline-date-display" class="form-control" style="background: var(--bg-main); font-weight: 600; cursor: not-allowed; color: var(--primary);">
                     Loading date...
                 </div>
             </div>
-            <div class="form-actions" style="margin-top: 35px; text-align: right;">
+
+            <!-- Last Run Stats Box -->
+            <div class="last-run-banner" id="last-run-banner" style="margin-top: 16px;">
+                <div class="last-run-item">
+                    <span class="last-run-title"><i class="fa-regular fa-clock"></i> Last Run:</span>
+                    <span id="last-run-time-val" class="last-run-value">Not recorded yet</span>
+                </div>
+                <div class="last-run-item">
+                    <span class="last-run-title"><i class="fa-solid fa-stopwatch"></i> Duration:</span>
+                    <span id="last-run-duration-val" class="last-run-value">--</span>
+                </div>
+            </div>
+
+            <div class="form-actions" style="margin-top: 25px; text-align: right;">
                 <div class="tooltip-wrapper" style="width: 100%;">
-                    <button class="btn btn-primary btn-block" id="start-pipeline-btn" style="width: 100%; justify-content: center; padding: 12px; font-size: 16px;"><i class="fa-solid fa-play"></i> Initialize Agent Engine</button>
+                    <button class="btn btn-primary btn-block" id="start-pipeline-btn" style="width: 100%; justify-content: center; padding: 12px; font-size: 15px;"><i class="fa-solid fa-play"></i> Initialize Agent Engine</button>
                     <span class="tooltip-text">Warning: Once started, it cannot be cancelled.</span>
                 </div>
             </div>
         </div>
 
-        <!-- State 2: Progress -->
+        <!-- State 2: Progress & Live Logs -->
         <div class="modal-body hidden" id="pipeline-progress-view">
-            <div class="progress-status" style="text-align: center; margin-bottom: 25px;">
+            <div class="progress-status" style="text-align: center; margin-bottom: 15px;">
                 <div class="spinner-container" id="progress-spinner">
                     <div class="pulse-ring"></div>
-                    <i class="fa-solid fa-robot fa-bounce" style="color: var(--primary); font-size: 2em; position: relative; z-index: 2;"></i>
+                    <i class="fa-solid fa-robot fa-bounce" style="color: var(--primary); font-size: 1.8em; position: relative; z-index: 2;"></i>
                 </div>
-                <div class="success-icon hidden" id="progress-success"><i class="fa-solid fa-circle-check" style="color: var(--success); font-size: 3em;"></i></div>
-                <h4 id="progress-status-text" style="margin-top: 20px; font-size: 18px;">Extracting emails & analyzing data...</h4>
-                <p class="text-muted text-sm" id="progress-subtext" style="margin-top: 8px;">This can take up to 10 minutes. You can safely close this window; the agent runs in the background.</p>
+                <div class="success-icon hidden" id="progress-success"><i class="fa-solid fa-circle-check" style="color: var(--success); font-size: 2.5em;"></i></div>
+                <h4 id="progress-status-text" style="margin-top: 14px; font-size: 16px;">Extracting emails & analyzing data...</h4>
+                <p class="text-muted text-sm" id="progress-subtext" style="margin-top: 4px;">Up to 10 minutes. You can safely close this popup; execution continues in background.</p>
             </div>
             
             <div class="progress-wrapper">
@@ -184,18 +214,46 @@
                     <span id="progress-time" style="font-family: monospace;">0:00</span>
                 </div>
             </div>
+
+            <!-- Terminal Live Logs Drawer -->
+            <div class="terminal-drawer">
+                <div class="terminal-header">
+                    <span><i class="fa-solid fa-terminal"></i> Agent Stream Logs</span>
+                    <span class="terminal-badge" id="terminal-step-badge">Phase 1/4</span>
+                </div>
+                <div class="terminal-body" id="terminal-body">
+                    <div class="terminal-line text-muted">[system] Initializing engine session...</div>
+                </div>
+            </div>
             
-            <div id="completion-stats" class="hidden" style="margin-top: 25px; padding: 18px; background: var(--success-light); border: 1px solid var(--success); border-radius: 8px; text-align: center; color: var(--success); font-weight: 600;">
-                <i class="fa-solid fa-stopwatch" style="margin-right: 5px;"></i> <span id="final-duration-text"></span>
+            <div id="completion-stats" class="hidden" style="margin-top: 15px; padding: 14px; background: var(--success-light); border: 1px solid var(--success); border-radius: 8px; text-align: center; color: var(--success); font-weight: 600;">
+                <i class="fa-solid fa-check-circle" style="margin-right: 5px;"></i> <span id="final-duration-text"></span>
             </div>
 
-            <div class="form-actions hidden" id="pipeline-done-actions" style="margin-top: 25px; text-align: center;">
-                <button class="btn btn-primary" id="done-pipeline-btn" style="width: 100%; justify-content: center; padding: 12px;">Close Panel & Refresh</button>
+            <div class="form-actions hidden" id="pipeline-done-actions" style="margin-top: 15px; text-align: center;">
+                <button class="btn btn-primary" id="done-pipeline-btn" style="width: 100%; justify-content: center; padding: 10px;">Close Panel & Refresh</button>
             </div>
             
-            <!-- Hidden button for dev testing -->
-            <div style="text-align: center; margin-top: 20px;">
+            <div style="text-align: center; margin-top: 12px;">
                 <button class="btn btn-outline btn-sm text-muted" id="dev-fast-forward" style="opacity: 0.1; font-size: 10px; padding: 2px 5px;">Dev: Force Complete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recruiter Reply Assistant Modal -->
+    <div class="modal hidden" id="reply-modal" style="width: 540px;">
+        <div class="modal-header">
+            <h3><i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary); margin-right: 6px;"></i> AI Response Assistant</h3>
+            <button class="close-btn" id="close-reply-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <p class="text-muted" style="margin-bottom: 12px;">Generated draft for <strong id="reply-recipient" style="color: var(--text-main);">Recruiter</strong>:</p>
+            <div class="form-group">
+                <textarea id="reply-draft-area" class="form-control" rows="8" style="font-family: inherit; resize: vertical; line-height: 1.5;"></textarea>
+            </div>
+            <div class="form-actions" style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center;">
+                <button class="btn btn-outline btn-sm" id="copy-draft-btn"><i class="fa-regular fa-copy"></i> Copy to Clipboard</button>
+                <a href="#" target="_blank" class="btn btn-primary btn-sm" id="open-gmail-reply-btn"><i class="fa-solid fa-envelope-open-text"></i> Open in Gmail</a>
             </div>
         </div>
     </div>
@@ -218,7 +276,7 @@
                         <option value="sunset">Sunset (Warm Plum & Rose)</option>
                     </select>
                 </div>
-                <div class="setting-item" style="margin-top: 20px;">
+                <div class="setting-item" style="margin-top: 18px;">
                     <label>Interface Text Size</label>
                     <select id="text-size-select" class="form-control">
                         <option value="text-sm">Small</option>
