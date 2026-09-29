@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Power Assistant</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="text-md">
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo"><i class="fa-solid fa-robot"></i></div>
+                <h2>AI Assistant</h2>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active"><i class="fa-solid fa-layer-group"></i> Dashboard</a>
+                <a href="#" class="nav-item" id="nav-run-pipeline"><i class="fa-solid fa-play"></i> Run Pipeline</a>
+                <a href="#" class="nav-item" id="nav-settings"><i class="fa-solid fa-sliders"></i> Settings</a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="top-header">
+                <div class="header-titles">
+                    <h1>Job Search Overview</h1>
+                    <p class="subtitle" id="current-date">Loading date...</p>
+                </div>
+                
+                <div class="header-actions">
+                    <div class="dropdown-wrapper" id="notif-wrapper">
+                        <button class="icon-btn" id="notif-btn">
+                            <i class="fa-regular fa-bell"></i>
+                            <span class="badge" id="notif-badge">0</span>
+                        </button>
+                        <div class="dropdown-menu hidden" id="notif-dropdown">
+                            <div class="dropdown-header">Don't Miss Alerts</div>
+                            <div class="dropdown-body" id="notif-list">
+                                <!-- Populated by JS -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="user-profile">
+                        <img src="https://ui-avatars.com/api/?name=Himanshu+Singh&background=4F46E5&color=fff&bold=true" alt="HS">
+                    </div>
+                </div>
+            </header>
+
+            <div class="dashboard-grid">
+                <!-- Column 1: Main Tasks & Opportunities -->
+                <div class="main-column">
+                    <!-- Responsibilities -->
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <div class="icon-box primary-box"><i class="fa-solid fa-list-check"></i></div>
+                                <h3>Today's Responsibilities</h3>
+                                <span class="counter" id="resp-count">0</span>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="list-container" id="responsibilities-list">
+                                <div class="empty-state">Loading...</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Opportunities -->
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <div class="icon-box success-box"><i class="fa-solid fa-briefcase"></i></div>
+                                <h3>Opportunities</h3>
+                                <span class="counter" id="opp-count">0</span>
+                            </div>
+                        </div>
+                        <div class="panel-body">
+                            <div class="list-container" id="opportunities-list">
+                                <div class="empty-state">Loading...</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Column 2: Updates & Upcoming -->
+                <div class="side-column">
+                    <!-- Updates -->
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <div class="icon-box info-box"><i class="fa-solid fa-bolt"></i></div>
+                                <h3>Updates</h3>
+                                <span class="counter" id="update-count">0</span>
+                            </div>
+                        </div>
+                        <div class="panel-body" style="padding: 0;">
+                            <div class="feed-container" id="updates-list">
+                                <div class="empty-state">Loading...</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Upcoming -->
+                    <section class="panel">
+                        <div class="panel-header">
+                            <div class="panel-title">
+                                <div class="icon-box warning-box"><i class="fa-regular fa-calendar"></i></div>
+                                <h3>Upcoming</h3>
+                                <span class="counter" id="upc-count">0</span>
+                            </div>
+                        </div>
+                        <div class="panel-body" style="padding: 0;">
+                            <div class="feed-container" id="upcoming-list">
+                                <div class="empty-state">Loading...</div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals Overlay -->
+    <div class="modal-overlay hidden" id="modal-overlay"></div>
+
+    <!-- Run Pipeline Modal -->
+    <div class="modal hidden" id="pipeline-modal">
+        <div class="modal-header">
+            <h3>Run AI Pipeline</h3>
+            <button class="close-btn" id="close-pipeline-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        
+        <!-- State 1: Configuration -->
+        <div class="modal-body" id="pipeline-config-view">
+            <p class="text-muted">Start the automated email extraction and job search agent.</p>
+            <div class="form-group" style="margin-top: 20px;">
+                <label>Run for Date:</label>
+                <div id="pipeline-date-display" class="form-control" style="background: var(--bg-main); font-weight: 600; cursor: default; color: var(--text-muted);">
+                    Loading date...
+                </div>
+            </div>
+            <div class="form-actions" style="margin-top: 30px; text-align: right;">
+                <button class="btn btn-outline" id="cancel-pipeline-btn">Cancel</button>
+                <button class="btn btn-primary" id="start-pipeline-btn"><i class="fa-solid fa-play"></i> Start Engine</button>
+            </div>
+        </div>
+
+        <!-- State 2: Progress -->
+        <div class="modal-body hidden" id="pipeline-progress-view">
+            <div class="progress-status" style="text-align: center; margin-bottom: 20px;">
+                <div class="spinner"><i class="fa-solid fa-circle-notch fa-spin"></i></div>
+                <h4 id="progress-status-text" style="margin-top: 15px;">Extracting emails & analyzing data...</h4>
+                <p class="text-muted text-sm" style="margin-top: 5px;">This can take up to 10 minutes. You can close this window; it will run in the background.</p>
+            </div>
+            
+            <div class="progress-wrapper">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progress-fill" style="width: 0%;"></div>
+                </div>
+                <div class="progress-stats">
+                    <span id="progress-percentage">0%</span>
+                    <span id="progress-time">0:00</span>
+                </div>
+            </div>
+            
+            <!-- Hidden button for testing fast-forward feature quickly without waiting -->
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="btn btn-outline btn-sm text-muted" id="dev-fast-forward" style="opacity: 0.3; font-size: 10px;">Dev: Force Complete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal hidden" id="settings-modal">
+        <div class="modal-header">
+            <h3>Settings</h3>
+            <button class="close-btn" id="close-settings-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body">
+            <div class="settings-group">
+                <h4>Appearance</h4>
+                <div class="setting-item">
+                    <label>Theme</label>
+                    <select id="theme-select" class="form-control">
+                        <option value="light">Light Mode</option>
+                        <option value="dark">Dark Mode</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label>Text Size</label>
+                    <select id="text-size-select" class="form-control">
+                        <option value="text-sm">Small</option>
+                        <option value="text-md">Medium</option>
+                        <option value="text-lg">Large</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
