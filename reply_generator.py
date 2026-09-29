@@ -77,6 +77,8 @@ Do not invent facts.
 Keep the reply concise.
 Return only the email body.
 
+resume link if asked for resume : https://himanshuclub88.github.io/ResumeLatex/
+
 Conversation:
 {conversation}
 """
