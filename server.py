@@ -104,15 +104,6 @@ def execute_pipeline():
         summary_dict["last_run"] = run_timestamp
         summary_dict["last_run_duration"] = duration_str
 
-        # Build message lookup map to attach received_at to every item
-        email_map = {e.message_id: e.received_at.isoformat() for e in emails if getattr(e, "received_at", None)}
-
-        for category in ["responsibilities", "opportunities", "updates", "upcoming"]:
-            for item in summary_dict.get(category, []):
-                msg_id = item.get("message_id")
-                if msg_id and msg_id in email_map:
-                    item["received_at"] = email_map[msg_id]
-
         # Save to output file
         settings.output_file_json.parent.mkdir(parents=True, exist_ok=True)
         with open(settings.output_file_json, "w", encoding="utf-8") as f:
