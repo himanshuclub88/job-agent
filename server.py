@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 import time
 from datetime import datetime
+from email.message import EmailMessage
+from email.utils import formataddr
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -187,6 +190,13 @@ class ReplyRequest(BaseModel):
     message_id: str
     thread_id: str
     generate_again: bool = False
+    force: bool = False
+
+
+class ReplyContentRequest(BaseModel):
+    message_id: str
+    thread_id: str
+    reply: str
 
 
 def get_reply_state_path(settings) -> Path:
@@ -229,6 +239,105 @@ def generate_email_reply(message_id: str, thread_id: str, settings) -> str:
         llm=call_llm,
     )
 
+
+def get_reply_target(settings, message_id: str, thread_id: str) -> dict[str, str]:
+    """Read the Gmail message headers needed to create an in-thread reply."""
+    from gmail_client import GmailClient
+
+    gmail = GmailClient(settings)
+    raw = gmail.service.users().messages().get(
+        userId="me",
+        id=message_id,
+        format="full",
+    ).execute()
+
+    headers = {
+        h["name"].lower(): h["value"]
+        for h in raw.get("payload", {}).get("headers", [])
+    }
+
+    sender = headers.get("reply-to") or headers.get("from")
+    subject = headers.get("subject", "")
+    message_thread_id = raw.get("threadId") or thread_id
+
+    if not sender:
+        raise ValueError("Could not determine the recipient from the Gmail message.")
+
+    return {
+        "to": sender,
+        "subject": subject,
+        "thread_id": message_thread_id,
+        "message_id": message_id,
+        "references": headers.get("references", ""),
+    }
+
+
+def build_reply_raw(target: dict[str, str], reply: str) -> str:
+    subject = target["subject"]
+    if subject and not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}"
+
+    message = EmailMessage()
+    message["To"] = target["to"]
+    message["Subject"] = subject
+    message["In-Reply-To"] = target["message_id"]
+    references = target.get("references", "").strip()
+    message["References"] = f"{references} {target['message_id']}".strip()
+    message.set_content(reply.strip())
+
+    return base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+
+def create_reply_draft(message_id: str, thread_id: str, reply: str, settings) -> dict[str, Any]:
+    from gmail_client import GmailClient
+
+    if not reply.strip():
+        raise ValueError("Reply cannot be empty.")
+
+    gmail = GmailClient(settings)
+    target = get_reply_target(settings, message_id, thread_id)
+    raw = build_reply_raw(target, reply)
+
+    draft = gmail.service.users().drafts().create(
+        userId="me",
+        body={
+            "message": {
+                "raw": raw,
+                "threadId": target["thread_id"],
+            }
+        },
+    ).execute()
+
+    return {
+        "draft_id": draft.get("id"),
+        "thread_id": target["thread_id"],
+    }
+
+
+def send_reply(message_id: str, thread_id: str, reply: str, settings) -> dict[str, Any]:
+    from gmail_client import GmailClient
+
+    if not reply.strip():
+        raise ValueError("Reply cannot be empty.")
+
+    gmail = GmailClient(settings)
+    target = get_reply_target(settings, message_id, thread_id)
+    raw = build_reply_raw(target, reply)
+
+    sent = gmail.service.users().messages().send(
+        userId="me",
+        body={
+            "raw": raw,
+            "threadId": target["thread_id"],
+        },
+    ).execute()
+
+    return {
+        "message_id": sent.get("id"),
+        "thread_id": sent.get("threadId") or target["thread_id"],
+    }
+
+
 # ==========================================
 # API ENDPOINTS
 # ==========================================
@@ -250,9 +359,37 @@ def get_future_events():
     return load_json_file(settings.future_events_file)
 
 
+@app.get("/api/reply-status/{message_id}", tags=["Reply"])
+def get_reply_status(message_id: str):
+    settings = get_settings()
+    state = load_json_file(settings.state_file)
+    event = state.get("events", {}).get(message_id)
+
+    if event is None:
+        return {
+            "status": "event_not_found",
+            "message_id": message_id,
+            "need_to_reply": False,
+        }
+
+    need_to_reply = bool(event.get("need_to_reply", False))
+
+    return {
+        "status": "reply_needed" if need_to_reply else "reply_not_needed",
+        "message_id": message_id,
+        "thread_id": event.get("thread_id"),
+        "need_to_reply": need_to_reply,
+    }
+
+
 @app.post("/api/generate-reply", tags=["Reply"])
 def generate_reply_api(request: ReplyRequest):
-    
+    """
+    Generate a reply for one Gmail message.
+
+    The frontend supplies only message_id and thread_id.
+    generate_again=True forces a fresh LLM generation.
+    """
     settings = get_settings()
     reply_path = get_reply_state_path(settings)
     state = load_reply_state(reply_path)
@@ -260,7 +397,7 @@ def generate_reply_api(request: ReplyRequest):
 
     existing = messages.get(request.message_id)
 
-    if existing and existing.get("reply_generated") and not request.generate_again:
+    if existing and existing.get("reply_generated") and not (request.generate_again or request.force):
         return {
             "status": "success",
             "message_id": request.message_id,
@@ -310,6 +447,59 @@ def generate_reply_api(request: ReplyRequest):
     }
 
 
+@app.post("/api/create-reply-draft", tags=["Reply"])
+def create_reply_draft_api(request: ReplyContentRequest):
+    settings = get_settings()
+    try:
+        result = create_reply_draft(
+            request.message_id,
+            request.thread_id,
+            request.reply,
+            settings,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create Gmail draft: {type(e).__name__}: {e}",
+        )
+
+    return {"status": "success", **result}
+
+
+@app.post("/api/send-reply", tags=["Reply"])
+def send_reply_api(request: ReplyContentRequest):
+    settings = get_settings()
+    reply_path = get_reply_state_path(settings)
+    state = load_reply_state(reply_path)
+    messages = state.setdefault("messages", {})
+
+    try:
+        result = send_reply(
+            request.message_id,
+            request.thread_id,
+            request.reply,
+            settings,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to send Gmail reply: {type(e).__name__}: {e}",
+        )
+
+    existing = messages.get(request.message_id, {})
+    messages[request.message_id] = {
+        **existing,
+        "thread_id": request.thread_id,
+        "reply_generated": True,
+        "reply_sent": True,
+        "reply": request.reply,
+        "sent_at": datetime.now(settings.tz).isoformat(),
+    }
+    save_reply_state(reply_path, state)
+
+    return {"status": "success", **result}
+
+
 @app.get("/api/pipeline-status", tags=["Pipeline"])
 def get_pipeline_status():
     """Returns the status of background task execution including live logs."""
@@ -331,28 +521,6 @@ def trigger_pipeline(background_tasks: BackgroundTasks):
         "message": "AI email extraction pipeline has been started.",
     }
 
-@app.get("/api/reply-status/{message_id}", tags=["Reply"])
-def get_reply_status(message_id: str):
-    settings = get_settings()
-    state = load_json_file(settings.state_file)
-
-    event = state.get("events", {}).get(message_id)
-
-    if event is None:
-        return {
-            "status": "event_not_found",
-            "message_id": message_id,
-            "need_to_reply": False,
-        }
-
-    need_to_reply = bool(event.get("need_to_reply", False))
-
-    return {
-        "status": "reply_needed" if need_to_reply else "reply_not_needed",
-        "message_id": message_id,
-        "thread_id": event.get("thread_id"),
-        "need_to_reply": need_to_reply,
-    }
 
 
 if __name__ == "__main__":
