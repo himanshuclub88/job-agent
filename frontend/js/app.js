@@ -1,15 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     /* --- State & Config --- */
-    const API_URL = "http://localhost:8000/api/summary";
-    const API_RUN_PIPELINE = "http://localhost:8000/api/run-pipeline";
-    const API_PIPELINE_STATUS = "http://localhost:8000/api/pipeline-status";
+    const API_URL = "http://127.0.0.1:8000/api/summary";
+    const API_RUN_PIPELINE = "http://127.0.0.1:8000/api/run-pipeline";
+    const API_PIPELINE_STATUS = "http://127.0.0.1:8000/api/pipeline-status";
     
     // Pipeline state
     let isPipelineRunning = false;
     let pipelineStartTime = 0;
     let localProgressTimer = null;
     let serverPollTimer = null;
-    let devForceComplete = false;
     let lastRenderedLogCount = 0;
 
     // Filter & Search State
@@ -17,101 +16,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSearch = '';
     let globalData = null;
 
-    // Fallback Data matching updated schema
+    // Fallback Data
     const fallbackData = {
         "last_run": "29 Sep 2026, 05:15 PM",
         "last_run_duration": "4 minutes, 20 seconds",
-        "responsibilities": [
-            { 
-                "company": "Indian MNC", 
-                "job_title": "AI Engineer", 
-                "text": "Share updated resume to hr@careersieve.com or call 8510853838 for AI Engineer position in Hyderabad.", 
-                "recruiter": "Rahul Kumar", 
-                "thread_id": "1a0d3060629a923e",
-                "received_at": "2026-09-29T10:14:00"
-            },
-            { 
-                "company": "I Novate", 
-                "job_title": "Lead AI Engineers", 
-                "text": "Apply for urgent AI Engineer openings", 
-                "recruiter": "Pankaj Kumar Gupta", 
-                "thread_id": "1a0d95ef59891a69",
-                "received_at": "2026-09-28T16:30:00"
-            },
-            {
-                "company": "Cognizant",
-                "job_title": "Pyspark Skill Hyd",
-                "text": "Apply now for the Cognizant face-to-face interview opportunity.",
-                "recruiter": "Concepts Unlimited",
-                "thread_id": "1a0ccdf4fcf5576d",
-                "received_at": "2026-09-27T11:20:00"
-            }
-        ],
-        "opportunities": [
-            { 
-                "company": "Innovya Tech", 
-                "job_title": "Immediate Joiner: Data Engineer - Python | PySpark", 
-                "location": "Pune District", 
-                "source": "LinkedIn Job Alerts", 
-                "thread_id": "1a0eb3062ea6fd10", 
-                "url": "#",
-                "received_at": "2026-09-29T08:00:00"
-            },
-            { 
-                "company": "Infosys", 
-                "job_title": "Gen AI Developer", 
-                "location": "Hyderabad, Bengaluru", 
-                "source": "Naukri", 
-                "thread_id": "1a0dc591294bfb37", 
-                "url": "#",
-                "received_at": "2026-09-28T14:10:00"
-            },
-            {
-                "company": "techolution",
-                "job_title": "Azure Data Engineer (Remote)",
-                "location": "Remote, India",
-                "source": "LinkedIn Job Alerts",
-                "thread_id": "1a0e609f7c3828c4",
-                "url": "#",
-                "received_at": "2026-09-27T09:45:00"
-            }
-        ],
-        "updates": [
-            { 
-                "text": "Applied for 2 jobs on 23 Sep, including Lead AI Engineer at Virtusa.", 
-                "thread_id": "1a0d078501b3a6ea",
-                "received_at": "2026-09-28T19:00:00"
-            },
-            {
-                "text": "Meeden Labs & Accenture viewed profile and sent NVites for AI Engineer.",
-                "thread_id": "1a0d5570c31b1f2b",
-                "received_at": "2026-09-27T18:30:00"
-            }
-        ],
-        "upcoming": [
-            { 
-                "company": "Databricks", 
-                "job_title": "Certified Data Engineer Assessment", 
-                "text": "Assessment scheduled at 14:00 IST.", 
-                "date": "2026-11-10", 
-                "time": "14:00 IST", 
-                "link": "#",
-                "received_at": "2026-09-25T12:00:00"
-            },
-            {
-                "company": "Adecco",
-                "job_title": "Candidate Survey",
-                "text": "Deadline to complete Adecco feedback survey.",
-                "date": "2026-10-04",
-                "time": null,
-                "link": null,
-                "received_at": "2026-09-24T15:00:00"
-            }
-        ],
-        "dont_miss": [
-            "Complete the Adecco feedback survey by the deadline on 2026-10-04.",
-            "Prepare for Databricks assessment on 2026-11-10 at 14:00 IST."
-        ]
+        "responsibilities": [],
+        "opportunities": [],
+        "updates": [],
+        "upcoming": [],
+        "dont_miss": []
     };
 
     /* --- Initialization --- */
@@ -168,7 +81,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /* --- DOM Events --- */
     function setupEvents() {
-        // Notification dropdown
         const notifBtn = document.getElementById('notif-btn');
         const notifDropdown = document.getElementById('notif-dropdown');
         notifBtn.addEventListener('click', (e) => {
@@ -181,13 +93,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Search input
         document.getElementById('dashboard-search').addEventListener('input', (e) => {
             currentSearch = e.target.value.toLowerCase().trim();
             filterAndRender();
         });
 
-        // Category filter chips
         document.querySelectorAll('.filter-chip').forEach(chip => {
             chip.addEventListener('click', () => {
                 document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
@@ -197,7 +107,6 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        // Settings Modal
         document.getElementById('nav-settings').addEventListener('click', (e) => {
             e.preventDefault();
             openModal('settings-modal');
@@ -213,7 +122,6 @@ document.addEventListener('DOMContentLoaded', () => {
             localStorage.setItem('textSize', e.target.value);
         });
 
-        // Pipeline Modal Logic
         document.getElementById('nav-run-pipeline').addEventListener('click', (e) => {
             e.preventDefault();
             openModal('pipeline-modal');
@@ -224,13 +132,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('pipeline-config-view').classList.remove('hidden');
                 document.getElementById('pipeline-progress-view').classList.add('hidden');
                 
-                // Populate last run details inside modal
                 if (globalData) {
                     document.getElementById('last-run-time-val').textContent = globalData.last_run || "Not recorded yet";
                     document.getElementById('last-run-duration-val').textContent = globalData.last_run_duration || "--";
                 }
                 
-                // Reset progress UI
                 document.getElementById('progress-spinner').classList.remove('hidden');
                 document.getElementById('progress-success').classList.add('hidden');
                 document.getElementById('completion-stats').classList.add('hidden');
@@ -248,26 +154,12 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('close-pipeline-btn').addEventListener('click', () => closeModal('pipeline-modal'));
         document.getElementById('done-pipeline-btn').addEventListener('click', () => closeModal('pipeline-modal'));
         
-        // Recruiter Reply modal
-        document.getElementById('close-reply-btn').addEventListener('click', () => closeModal('reply-modal'));
-        document.getElementById('copy-draft-btn').addEventListener('click', () => {
-            const copyText = document.getElementById('reply-draft-area');
-            copyText.select();
-            navigator.clipboard.writeText(copyText.value);
-            document.getElementById('copy-draft-btn').innerHTML = '<i class="fa-solid fa-check"></i> Copied!';
-            setTimeout(() => {
-                document.getElementById('copy-draft-btn').innerHTML = '<i class="fa-regular fa-copy"></i> Copy to Clipboard';
-            }, 2000);
-        });
-
         document.getElementById('modal-overlay').addEventListener('click', () => {
             closeModal('pipeline-modal');
             closeModal('settings-modal');
-            closeModal('reply-modal');
         });
 
         document.getElementById('start-pipeline-btn').addEventListener('click', startPipeline);
-        document.getElementById('dev-fast-forward').addEventListener('click', () => devForceComplete = true);
     }
 
     /* --- Data Fetching & Filter Logic --- */
@@ -278,7 +170,6 @@ document.addEventListener('DOMContentLoaded', () => {
             globalData = await res.json();
             filterAndRender();
         } catch (err) {
-            console.log("Using fallback mock data.");
             globalData = fallbackData;
             filterAndRender();
         }
@@ -301,25 +192,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentFilter === 'all') return true;
         const haystack = `${item.company || ''} ${item.job_title || ''} ${item.text || ''} ${item.location || ''}`.toLowerCase();
         
-        if (currentFilter === 'ai') {
-            return haystack.includes('ai') || haystack.includes('genai') || haystack.includes('gpt');
-        }
-        if (currentFilter === 'data') {
-            return haystack.includes('data') || haystack.includes('pyspark') || haystack.includes('spark') || haystack.includes('sql');
-        }
-        if (currentFilter === 'remote') {
-            return haystack.includes('remote');
-        }
-        if (currentFilter === 'action') {
-            return haystack.includes('dm') || haystack.includes('contact') || haystack.includes('resume') || haystack.includes('apply');
-        }
+        if (currentFilter === 'ai') return haystack.includes('ai') || haystack.includes('genai') || haystack.includes('gpt');
+        if (currentFilter === 'data') return haystack.includes('data') || haystack.includes('pyspark') || haystack.includes('spark') || haystack.includes('sql');
+        if (currentFilter === 'remote') return haystack.includes('remote');
+        if (currentFilter === 'action') return haystack.includes('dm') || haystack.includes('contact') || haystack.includes('resume') || haystack.includes('apply');
         return true;
     }
 
     function filterAndRender() {
         if (!globalData) return;
 
-        // Render Alerts
         if (globalData.dont_miss && globalData.dont_miss.length > 0) {
             document.getElementById('notif-badge').textContent = globalData.dont_miss.length;
             document.getElementById('notif-list').innerHTML = globalData.dont_miss.map(alert => `
@@ -332,13 +214,11 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('notif-list').innerHTML = '<div style="padding:15px;text-align:center;color:var(--text-muted);">All caught up!</div>';
         }
 
-        // Filtered Lists
         const filteredResponsibilities = (globalData.responsibilities || []).filter(itemMatches);
         const filteredOpportunities = (globalData.opportunities || []).filter(itemMatches);
         const filteredUpdates = (globalData.updates || []).filter(itemMatches);
         const filteredUpcoming = (globalData.upcoming || []).filter(itemMatches);
 
-        // Render Responsibilities with Received Pill and Draft Button
         renderRows('responsibilities-list', 'resp-count', filteredResponsibilities, item => {
             const emailUrl = `https://mail.google.com/mail/u/1/#all/${item.thread_id}`;
             const receivedText = formatReceivedDate(item.received_at);
@@ -355,26 +235,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="item-actions">
-                    <button class="btn btn-outline btn-sm draft-reply-btn" data-thread="${item.thread_id}" data-recruiter="${item.recruiter || 'Hiring Team'}" data-role="${item.job_title || 'Role'}" data-company="${item.company || 'Company'}"><i class="fa-solid fa-wand-magic-sparkles" style="color:var(--primary);"></i> Draft</button>
                     <a href="${emailUrl}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-regular fa-envelope"></i> Email</a>
                 </div>
             </div>`;
         });
 
-        // Attach event listeners for dynamic Draft Reply buttons
-        document.querySelectorAll('.draft-reply-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const recruiter = btn.getAttribute('data-recruiter');
-                const role = btn.getAttribute('data-role');
-                const company = btn.getAttribute('data-company');
-                const threadId = btn.getAttribute('data-thread');
-                
-                openDraftAssistant(recruiter, role, company, threadId);
-            });
-        });
-
-        // Render Opportunities with Received Pill
         renderRows('opportunities-list', 'opp-count', filteredOpportunities, item => {
             const emailUrl = `https://mail.google.com/mail/u/1/#all/${item.thread_id}`;
             const receivedText = formatReceivedDate(item.received_at);
@@ -396,7 +261,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
         });
 
-        // Render Updates
         renderRows('updates-list', 'update-count', filteredUpdates, item => {
             const receivedText = formatReceivedDate(item.received_at);
             return `
@@ -410,7 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
         });
 
-        // Render Upcoming
         renderRows('upcoming-list', 'upc-count', filteredUpcoming, item => {
             const receivedText = formatReceivedDate(item.received_at);
             return `
@@ -438,25 +301,6 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = items.map(templateFn).join('');
     }
 
-    /* --- Recruiter Drafting Helper --- */
-    function openDraftAssistant(recruiter, role, company, threadId) {
-        document.getElementById('reply-recipient').textContent = `${recruiter} (${company})`;
-        const sampleDraft = `Hi ${recruiter.split(' ')[0]},
-
-Thank you for reaching out regarding the ${role} opening at ${company}.
-
-I have attached my updated resume and would welcome the opportunity to discuss how my hands-on background in developing scalable AI applications and pipelines aligns with your team's objectives.
-
-Please let me know your availability for a brief call this week.
-
-Best regards,
-Himanshu Singh
-+91 9876543210`;
-        
-        document.getElementById('reply-draft-area').value = sampleDraft;
-        document.getElementById('open-gmail-reply-btn').href = `https://mail.google.com/mail/u/1/#all/${threadId}`;
-        openModal('reply-modal');
-    }
 
     /* --- Modal & Pipeline Logic --- */
     function openModal(id) {
@@ -485,24 +329,31 @@ Himanshu Singh
     async function startPipeline() {
         const startBtn = document.getElementById('start-pipeline-btn');
         startBtn.disabled = true;
-        
-        try {
-            fetch(API_RUN_PIPELINE, { method: 'POST' }).catch(e => console.log('Backend not available. Simulating.'));
-        } catch(e) {}
 
         document.getElementById('pipeline-config-view').classList.add('hidden');
         document.getElementById('pipeline-progress-view').classList.remove('hidden');
         
         isPipelineRunning = true;
         pipelineStartTime = Date.now();
-        devForceComplete = false;
         lastRenderedLogCount = 0;
 
-        // Reset terminal UI
         document.getElementById('terminal-body').innerHTML = '';
+        appendTerminalLog("Initializing connection to backend API...", "Init");
+
+        try {
+            const res = await fetch(API_RUN_PIPELINE, { method: 'POST' });
+            if (!res.ok) {
+                appendTerminalLog(`Backend error: HTTP ${res.status}`, "Error");
+            } else {
+                appendTerminalLog("Backend acknowledged. Background task started.", "Phase 1");
+            }
+        } catch(e) {
+            appendTerminalLog(`Network Error: Cannot reach API at ${API_RUN_PIPELINE}`, "Failed");
+            appendTerminalLog("Ensure 'python server.py' is running.", "Info");
+        }
         
         localProgressTimer = setInterval(updateVisualProgress, 1000);
-        serverPollTimer = setInterval(pollServerStatus, 2000);
+        serverPollTimer = setInterval(pollServerStatus, 1500);
     }
 
     function formatTime(seconds) {
@@ -516,11 +367,6 @@ Himanshu Singh
         
         const elapsedSec = (Date.now() - pipelineStartTime) / 1000;
         let p = 0;
-
-        if (devForceComplete) {
-            finishPipeline("Simulated fast forward.");
-            return;
-        }
 
         if (elapsedSec < 600) {
             p = (elapsedSec / 600) * 90;
@@ -543,7 +389,6 @@ Himanshu Singh
             if (res.ok) {
                 const status = await res.json();
                 
-                // Stream real logs from server.py buffer
                 if (status.logs && status.logs.length > lastRenderedLogCount) {
                     const newLogs = status.logs.slice(lastRenderedLogCount);
                     newLogs.forEach(logLine => {
@@ -552,13 +397,17 @@ Himanshu Singh
                     lastRenderedLogCount = status.logs.length;
                 }
 
-                // Check completion trigger
-                if (status.is_running === false && status.duration_str) {
-                    finishPipeline(status.duration_str, status.message);
+                if (status.is_running === false) {
+                    if (status.duration_str && status.duration_str !== "Failed") {
+                        finishPipeline(status.duration_str, status.message);
+                    } else {
+                        appendTerminalLog(`Pipeline terminated: ${status.message}`, "Failed");
+                        finishPipeline("0:00", "Pipeline failed or stopped.");
+                    }
                 }
             }
         } catch (e) {
-            // Server temporarily offline or unreachable
+            // Ignore temporary network drops
         }
     }
 
@@ -589,7 +438,6 @@ Himanshu Singh
         
         document.getElementById('pipeline-done-actions').classList.remove('hidden');
         
-        // Reload dashboard data
         fetchData();
     }
 

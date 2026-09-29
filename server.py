@@ -16,11 +16,11 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS for frontend integration
+# Enable CORS safely for frontend integration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False, # Changed to False to prevent strict browser CORS blocks
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -31,7 +31,7 @@ pipeline_state: dict[str, Any] = {
     "message": "Idle",
     "duration_str": None,
     "last_run": None,
-    "logs": [],          # Real log stream buffer for the frontend terminal
+    "logs": [],          
     "current_step": "Phase 1/4"
 }
 
@@ -48,7 +48,6 @@ def emit_log(msg: str, step: str | None = None) -> None:
 
 
 def get_settings():
-    """Lazy-load settings to prevent initialization crashes."""
     from config import settings
     return settings
 
@@ -87,7 +86,6 @@ def execute_pipeline() -> None:
         from responsibility import analyze_today
         from state import StateStore
 
-        # 1. Connect to Gmail
         emit_log("Authenticating and connecting to Gmail API...", "Phase 1/4")
         gmail = GmailClient(settings)
         today = gmail.today()
@@ -101,9 +99,9 @@ def execute_pipeline() -> None:
             emit_log("No emails found in this timeframe. Pipeline terminating early.", "Done")
             pipeline_state["is_running"] = False
             pipeline_state["message"] = "No emails found in the current window."
+            pipeline_state["duration_str"] = "0 seconds"
             return
 
-        # 2. State filtering & Classification
         emit_log("Checking state store cache to filter previously processed emails...", "Phase 2/4")
         state = StateStore(settings.state_file)
         candidates = state.filter_for_processing(emails)
@@ -118,9 +116,9 @@ def execute_pipeline() -> None:
             emit_log("No job-related emails detected. Ending run.", "Done")
             pipeline_state["is_running"] = False
             pipeline_state["message"] = "No job-related emails found."
+            pipeline_state["duration_str"] = "0 seconds"
             return
 
-        # 3. Extraction & Event Merging
         emit_log(f"Extracting structured job events via LLM from {len(relevant)} email(s)...", "Phase 3/4")
         events = extract_job_events_from_emails(emails, relevant, settings)
         emit_log(f"Extracted {len(events)} discrete job events.", "Phase 3/4")
@@ -129,7 +127,6 @@ def execute_pipeline() -> None:
         all_events = state.merge_events(cached, events)
         emit_log(f"Merged with 7-day window cache. Total events: {len(all_events)}.", "Phase 3/4")
 
-        # 4. Responsibility Analysis & Storage
         emit_log("Loading commitments from future_events.json...", "Phase 4/4")
         future_store = FutureEventStore(settings.future_events_file)
         future_events = future_store.load()
@@ -141,7 +138,6 @@ def execute_pipeline() -> None:
         state.save(emails, all_events)
         future_store.save(daily.upcoming)
 
-        # 5. Measure duration & save
         end_time = time.perf_counter()
         elapsed = end_time - start_time
         hours, remainder = divmod(int(elapsed), 3600)
@@ -157,7 +153,6 @@ def execute_pipeline() -> None:
 
         emit_log("Serializing JSON and writing payload...", "Phase 4/4")
         
-        # Serialize Pydantic schema cleanly and inject run metrics
         summary_dict = daily.model_dump(mode="json")
         summary_dict["last_run"] = run_timestamp
         summary_dict["last_run_duration"] = duration_str
@@ -171,7 +166,6 @@ def execute_pipeline() -> None:
 
         emit_log(f"Run completed successfully in {duration_str}.", "Done")
 
-        # Final state update for polling
         pipeline_state["is_running"] = False
         pipeline_state["message"] = "Job completed successfully."
         pipeline_state["duration_str"] = duration_str
@@ -181,6 +175,7 @@ def execute_pipeline() -> None:
         emit_log(f"ERROR: {str(e)}", "Failed")
         pipeline_state["is_running"] = False
         pipeline_state["message"] = f"Pipeline execution failed: {str(e)}"
+        pipeline_state["duration_str"] = "Failed"
 
 
 # ==========================================
