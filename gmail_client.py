@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 
 from models import EmailMessage
 
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
 
 
 class GmailClient:
@@ -25,6 +25,12 @@ class GmailClient:
     def _authenticate(self):
         token = self.settings.gmail_token_file
         creds = Credentials.from_authorized_user_file(str(token), SCOPES) if token.exists() else None
+
+        # Existing tokens may still have the old readonly scope.
+        # Force OAuth again so draft/send permissions are actually granted.
+        required_scope = SCOPES[0]
+        if creds and creds.scopes and required_scope not in creds.scopes:
+            creds = None
 
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
