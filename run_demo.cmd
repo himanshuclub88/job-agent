@@ -34,7 +34,7 @@ echo.
 echo Starting AI Data Engineering Copilot...
 echo.
 
-start "AI Copilot - Backend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%"" && echo [Backend] http://127.0.0.1:8000 && uvicorn server:app --reload"
+start "AI Copilot - Backend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%"" && echo [Backend] http://127.0.0.1:8080 && uvicorn server:app --reload"
 
 rem Wait 5 seconds
 timeout /t 5 /nobreak >nul
