@@ -238,6 +238,27 @@
         </div>
     </div>
 
+    <!-- Reply Generator Modal -->
+    <div class="modal hidden" id="reply-modal">
+        <div class="modal-header">
+            <div>
+                <h3>AI Reply</h3>
+                <div id="reply-status-text" class="reply-status-text">Checking reply status...</div>
+            </div>
+            <button class="close-btn" id="close-reply-btn"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="modal-body reply-modal-body">
+            <div class="reply-editor">
+                <textarea id="reply-text" class="reply-textarea" placeholder="Generated reply will appear here..."></textarea>
+            </div>
+            <div class="reply-actions">
+                <button class="btn btn-primary" id="generate-again-btn" disabled><i class="fa-solid fa-rotate"></i> Generate Again</button>
+                <button class="btn btn-primary" id="send-reply-btn" disabled><i class="fa-solid fa-paper-plane"></i> Send</button>
+                <button class="btn btn-outline" id="open-gmail-reply-btn" disabled><i class="fa-brands fa-google"></i> Open Gmail</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Settings Modal -->
     <div class="modal hidden" id="settings-modal">
         <div class="modal-header">

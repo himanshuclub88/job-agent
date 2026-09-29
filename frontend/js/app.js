@@ -3,6 +3,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_URL = "http://127.0.0.1:8000/api/summary";
     const API_RUN_PIPELINE = "http://127.0.0.1:8000/api/run-pipeline";
     const API_PIPELINE_STATUS = "http://127.0.0.1:8000/api/pipeline-status";
+    const API_REPLY_STATUS = "http://127.0.0.1:8000/api/reply-status";
+    const API_GENERATE_REPLY = "http://127.0.0.1:8000/api/generate-reply";
+    const API_CREATE_DRAFT = "http://127.0.0.1:8000/api/create-reply-draft";
+    const API_SEND_REPLY = "http://127.0.0.1:8000/api/send-reply";
 
     /* --- UI / Pipeline State --- */
     const PIPELINE_STARTED_AT_KEY = 'ai-assistant-pipeline-started-at';
@@ -16,6 +20,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastRenderedLogCount = 0;
     let statusErrorCount = 0;
     let activeModalId = null;
+
+    /* --- Reply Agent State --- */
+    let activeReplyMessageId = null;
+    let activeReplyThreadId = null;
+    let replyGenerating = false;
 
     /* --- Dashboard State --- */
     let currentFilter = 'all';
@@ -193,6 +202,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         document.getElementById('start-pipeline-btn').addEventListener('click', startPipeline);
+
+        document.getElementById('close-reply-btn').addEventListener('click', () => {
+            closeModal('reply-modal');
+        });
+
+        document.getElementById('generate-again-btn').addEventListener('click', () => {
+            if (activeReplyMessageId && activeReplyThreadId) {
+                generateReply(activeReplyMessageId, activeReplyThreadId, true);
+            }
+        });
+
+        document.getElementById('open-gmail-reply-btn').addEventListener('click', openGmailReply);
+
+        document.getElementById('send-reply-btn').addEventListener('click', sendReply);
     }
 
     /* --- Dashboard Data --- */
@@ -279,6 +302,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="item-actions">
+                    <button class="btn btn-primary btn-sm reply-btn" data-message-id="${item.message_id}" data-thread-id="${item.thread_id}">
+                        <i class="fa-solid fa-reply"></i> Reply
+                    </button>
                     <a href="${emailUrl}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-regular fa-envelope"></i> Email</a>
                 </div>
             </div>`;
@@ -334,6 +360,184 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
         });
     }
+
+    /* --- Reply Agent --- */
+    async function openReplyForItem(messageId, threadId) {
+        if (!messageId || !threadId) return;
+        activeReplyMessageId = messageId;
+        activeReplyThreadId = threadId;
+        const replyText = document.getElementById('reply-text');
+        const statusText = document.getElementById('reply-status-text');
+        const generateBtn = document.getElementById('generate-again-btn');
+        const openGmailBtn = document.getElementById('open-gmail-reply-btn');
+        const sendBtn = document.getElementById('send-reply-btn');
+        replyText.value = '';
+        statusText.textContent = 'Checking whether a reply is needed...';
+        statusText.className = 'reply-status-text';
+        generateBtn.disabled = true;
+        openGmailBtn.disabled = true;
+        sendBtn.disabled = true;
+        openModal('reply-modal');
+        try {
+            const statusRes = await fetch(`${API_REPLY_STATUS}/${encodeURIComponent(messageId)}`);
+            if (!statusRes.ok) throw new Error(`Reply status API returned HTTP ${statusRes.status}`);
+            const status = await statusRes.json();
+            if (status.status !== 'reply_needed' || status.need_to_reply !== true) {
+                statusText.textContent = 'No reply is required for this email.';
+                statusText.classList.add('reply-status-muted');
+                return;
+            }
+            statusText.textContent = 'Reply needed. Generating reply...';
+            await generateReply(messageId, status.thread_id || threadId, false);
+        } catch (error) {
+            statusText.textContent = `Unable to check reply status: ${error.message}`;
+            statusText.className = 'reply-status-text reply-status-error';
+        }
+    }
+
+    async function generateReply(messageId, threadId, force = false) {
+        if (replyGenerating) return;
+        const replyText = document.getElementById('reply-text');
+        const statusText = document.getElementById('reply-status-text');
+        const generateBtn = document.getElementById('generate-again-btn');
+        const openGmailBtn = document.getElementById('open-gmail-reply-btn');
+        const sendBtn = document.getElementById('send-reply-btn');
+        replyGenerating = true;
+        generateBtn.disabled = true;
+        openGmailBtn.disabled = true;
+        sendBtn.disabled = true;
+        statusText.textContent = force ? 'Generating a new reply...' : 'Generating reply...';
+        statusText.className = 'reply-status-text';
+        replyText.value = '';
+        try {
+            const payload = { message_id: messageId, thread_id: threadId, generate_again: force, force: force };
+            const res = await fetch(API_GENERATE_REPLY, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            });
+            if (!res.ok) {
+                let detail = `HTTP ${res.status}`;
+                try { const errorData = await res.json(); detail = errorData.detail || detail; } catch (_) {}
+                throw new Error(detail);
+            }
+            const data = await res.json();
+            const reply = data.reply || data.generated_reply || '';
+            if (!reply) throw new Error('Backend returned an empty reply.');
+            replyText.value = reply;
+            statusText.textContent = force ? 'New reply generated.' : 'Reply generated.';
+            generateBtn.disabled = false;
+            openGmailBtn.disabled = false;
+            sendBtn.disabled = false;
+        } catch (error) {
+            statusText.textContent = `Unable to generate reply: ${error.message}`;
+            statusText.className = 'reply-status-text reply-status-error';
+        } finally {
+            replyGenerating = false;
+            if (!replyText.value) generateBtn.disabled = true;
+        }
+    }
+
+    async function openGmailReply() {
+        if (!activeReplyMessageId || !activeReplyThreadId) return;
+        const replyText = document.getElementById('reply-text');
+        const statusText = document.getElementById('reply-status-text');
+        const openGmailBtn = document.getElementById('open-gmail-reply-btn');
+        const sendBtn = document.getElementById('send-reply-btn');
+        const reply = replyText.value.trim();
+
+        if (!reply) {
+            statusText.textContent = 'Reply is empty.';
+            statusText.className = 'reply-status-text reply-status-error';
+            return;
+        }
+
+        openGmailBtn.disabled = true;
+        sendBtn.disabled = true;
+        statusText.textContent = 'Preparing Gmail reply draft...';
+        statusText.className = 'reply-status-text';
+
+        try {
+            const res = await fetch(API_CREATE_DRAFT, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message_id: activeReplyMessageId,
+                    thread_id: activeReplyThreadId,
+                    reply,
+                }),
+            });
+            if (!res.ok) {
+                let detail = `HTTP ${res.status}`;
+                try { const errorData = await res.json(); detail = errorData.detail || detail; } catch (_) {}
+                throw new Error(detail);
+            }
+
+            window.open(`https://mail.google.com/mail/u/1/#all/${activeReplyThreadId}`, '_blank');
+            statusText.textContent = 'Draft opened in the same Gmail thread.';
+            openGmailBtn.disabled = false;
+            sendBtn.disabled = false;
+        } catch (error) {
+            statusText.textContent = `Unable to open Gmail draft: ${error.message}`;
+            statusText.className = 'reply-status-text reply-status-error';
+            openGmailBtn.disabled = false;
+            sendBtn.disabled = false;
+        }
+    }
+
+    async function sendReply() {
+        if (!activeReplyMessageId || !activeReplyThreadId) return;
+        const replyText = document.getElementById('reply-text');
+        const statusText = document.getElementById('reply-status-text');
+        const sendBtn = document.getElementById('send-reply-btn');
+        const generateBtn = document.getElementById('generate-again-btn');
+        const openGmailBtn = document.getElementById('open-gmail-reply-btn');
+        const reply = replyText.value.trim();
+
+        if (!reply) {
+            statusText.textContent = 'Reply is empty.';
+            statusText.className = 'reply-status-text reply-status-error';
+            return;
+        }
+
+        sendBtn.disabled = true;
+        generateBtn.disabled = true;
+        openGmailBtn.disabled = true;
+        statusText.textContent = 'Sending reply...';
+        statusText.className = 'reply-status-text';
+
+        try {
+            const res = await fetch(API_SEND_REPLY, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    message_id: activeReplyMessageId,
+                    thread_id: activeReplyThreadId,
+                    reply,
+                }),
+            });
+            if (!res.ok) {
+                let detail = `HTTP ${res.status}`;
+                try { const errorData = await res.json(); detail = errorData.detail || detail; } catch (_) {}
+                throw new Error(detail);
+            }
+
+            statusText.textContent = 'Reply sent successfully.';
+            statusText.className = 'reply-status-text';
+            replyText.disabled = true;
+        } catch (error) {
+            statusText.textContent = `Unable to send reply: ${error.message}`;
+            statusText.className = 'reply-status-text reply-status-error';
+            sendBtn.disabled = false;
+            generateBtn.disabled = false;
+            openGmailBtn.disabled = false;
+        }
+    }
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.reply-btn');
+        if (!button) return;
+        event.preventDefault();
+        openReplyForItem(button.dataset.messageId, button.dataset.threadId);
+    });
 
     function renderRows(containerId, countId, items, templateFn) {
         const container = document.getElementById(containerId);
