@@ -45,7 +45,7 @@ timeout /t 2 /nobreak >nul
 start "" "http://127.0.0.1:5500"
 
 echo.
-echo Backend:  http://127.0.0.1:8000
+echo Backend:  http://127.0.0.1:8080
 echo Frontend: http://127.0.0.1:5500
 echo.
 echo Two CMD windows were opened.
