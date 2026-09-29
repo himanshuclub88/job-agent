@@ -82,6 +82,7 @@ class JobEvent(BaseModel):
 class DailyResponsibility(BaseModel):
     message_id: str
     thread_id: str
+    received_at: datetime
     company: str | None = None
     job_title: str | None = None
     text: str
@@ -109,6 +110,7 @@ class UpcomingItem(BaseModel):
 class ImportantUpdate(BaseModel):
     message_id: str
     thread_id: str
+    received_at: datetime
     text: str
     email_subject: str | None = None
     email_sender: str | None = None
@@ -117,6 +119,7 @@ class ImportantUpdate(BaseModel):
 class Opportunity(BaseModel):
     message_id: str
     thread_id: str
+    received_at: datetime
     company: str | None = None
     job_title: str | None = None
     location: str | None = None

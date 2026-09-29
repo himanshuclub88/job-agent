@@ -47,7 +47,7 @@ class GmailClient:
 
     @staticmethod
     def context_dates(today: date) -> tuple[date, date]:
-        return today - timedelta(days=6), today
+        return today - timedelta(days=8), today
 
     def fetch_messages(self, start_date: date, end_date: date) -> list[EmailMessage]:
         # Gmail's after/before search is UTC-ish and can be surprising around midnight.
