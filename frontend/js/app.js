@@ -51,12 +51,30 @@ document.addEventListener('DOMContentLoaded', () => {
         setupEvents();
     }
 
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.getElementById('theme-select').value = theme;
+        localStorage.setItem('theme', theme);
+        
+        // Update mini selector dots
+        document.querySelectorAll('.theme-dot').forEach(dot => {
+            if(dot.getAttribute('data-theme-val') === theme) {
+                dot.classList.add('active');
+            } else {
+                dot.classList.remove('active');
+            }
+        });
+        
+        // Update profile picture background dynamically to match theme if needed
+        // The ui-avatars API uses a random color, but we can set a specific one if desired.
+        // Currently keeping it vibrant random for "eye-pleasing" effect.
+    }
+
     function loadSettings() {
         const theme = localStorage.getItem('theme') || 'light';
         const textSize = localStorage.getItem('textSize') || 'text-md';
         
-        document.documentElement.setAttribute('data-theme', theme);
-        document.getElementById('theme-select').value = theme;
+        applyTheme(theme);
         
         document.body.className = textSize;
         document.getElementById('text-size-select').value = textSize;
@@ -84,10 +102,16 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         document.getElementById('close-settings-btn').addEventListener('click', () => closeModal('settings-modal'));
         
+        // Theme Selectors (Dropdown & Mini Dots)
         document.getElementById('theme-select').addEventListener('change', (e) => {
-            document.documentElement.setAttribute('data-theme', e.target.value);
-            localStorage.setItem('theme', e.target.value);
+            applyTheme(e.target.value);
         });
+        document.querySelectorAll('.theme-dot').forEach(dot => {
+            dot.addEventListener('click', (e) => {
+                applyTheme(e.target.getAttribute('data-theme-val'));
+            });
+        });
+
         document.getElementById('text-size-select').addEventListener('change', (e) => {
             document.body.className = e.target.value;
             localStorage.setItem('textSize', e.target.value);
@@ -111,7 +135,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('progress-status-text').textContent = "Extracting emails & analyzing data...";
                 document.getElementById('progress-subtext').classList.remove('hidden');
                 document.getElementById('progress-fill').style.width = '0%';
+                document.getElementById('progress-fill').classList.add('gradient-bar');
                 document.getElementById('progress-percentage').textContent = '0%';
+                document.getElementById('progress-percentage').style.color = 'var(--primary)';
                 document.getElementById('progress-time').textContent = '0:00';
             }
         });
@@ -119,7 +145,6 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('close-pipeline-btn').addEventListener('click', () => closeModal('pipeline-modal'));
         document.getElementById('done-pipeline-btn').addEventListener('click', () => closeModal('pipeline-modal'));
         
-        // No more cancel button on config view. Modals can be closed by clicking the X or overlay.
         document.getElementById('modal-overlay').addEventListener('click', () => {
             closeModal('pipeline-modal');
             closeModal('settings-modal');
@@ -157,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `).join('');
         } else {
-            document.getElementById('notif-list').innerHTML = '<div style="padding:15px;text-align:center;color:gray;">All caught up!</div>';
+            document.getElementById('notif-list').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);">All caught up!</div>';
         }
 
         renderRows('responsibilities-list', 'resp-count', data.responsibilities, item => {
@@ -199,17 +224,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
         renderRows('updates-list', 'update-count', data.updates, item => `
             <div class="feed-item">
-                <div class="feed-meta">Update</div>
+                <div class="feed-meta"><i class="fa-solid fa-circle-check" style="margin-right: 4px;"></i> Update</div>
                 <div class="feed-title">${item.text}</div>
-                <a href="https://mail.google.com/mail/u/1/#all/${item.thread_id}" target="_blank" class="text-muted" style="font-size:0.8em;"><i class="fa-solid fa-arrow-right"></i> View Source</a>
+                <a href="https://mail.google.com/mail/u/1/#all/${item.thread_id}" target="_blank" class="text-muted" style="font-size:0.85em;"><i class="fa-solid fa-arrow-right"></i> View Source</a>
             </div>
         `);
 
         renderRows('upcoming-list', 'upc-count', data.upcoming, item => `
             <div class="feed-item">
-                <div class="feed-meta"><i class="fa-regular fa-clock"></i> ${item.date || ''} ${item.time ? 'at ' + item.time : ''}</div>
+                <div class="feed-meta" style="color: var(--warning);"><i class="fa-regular fa-clock" style="margin-right: 4px;"></i> ${item.date || ''} ${item.time ? 'at ' + item.time : ''}</div>
                 <div class="feed-title">${item.text}</div>
-                ${item.link ? `<a href="${item.link}" target="_blank" class="text-muted" style="font-size:0.8em;"><i class="fa-solid fa-link"></i> Link</a>` : ''}
+                ${item.link ? `<a href="${item.link}" target="_blank" class="text-muted" style="font-size:0.85em;"><i class="fa-solid fa-link"></i> External Link</a>` : ''}
             </div>
         `);
     }
@@ -219,7 +244,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const count = document.getElementById(countId);
         
         if (!items || items.length === 0) {
-            container.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-muted);">No data available.</div>';
+            container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted); font-weight: 500;">No data available for this category.</div>';
             count.textContent = '0';
             return;
         }
@@ -243,7 +268,6 @@ document.addEventListener('DOMContentLoaded', () => {
         startBtn.disabled = true; // Disable to prevent double click
         
         try {
-            // Trigger backend (ignore failure for UI simulation if backend is off)
             fetch(API_RUN_PIPELINE, { method: 'POST' }).catch(e => console.log('Backend not available. Simulating.'));
         } catch(e) {}
 
@@ -254,10 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pipelineStartTime = Date.now();
         devForceComplete = false;
         
-        // Local interval for smooth visual progress bar update
         localProgressTimer = setInterval(updateVisualProgress, 1000);
-        
-        // Polling interval to check backend status
         serverPollTimer = setInterval(pollServerStatus, 3000);
     }
 
@@ -299,13 +320,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res.ok) {
                 const status = await res.json();
                 
-                // If backend says it is finished and provides a duration
                 if (status.is_running === false && status.duration_str) {
                     finishPipeline(status.duration_str, status.message);
                 }
             }
         } catch (e) {
-            // Backend offline, just rely on devForceComplete for simulation
+            // Backend offline, relying on devForceComplete simulation
         }
     }
 
@@ -314,22 +334,28 @@ document.addEventListener('DOMContentLoaded', () => {
         clearInterval(serverPollTimer);
         
         isPipelineRunning = false;
-        document.getElementById('start-pipeline-btn').disabled = false; // re-enable for next time
+        document.getElementById('start-pipeline-btn').disabled = false;
         
-        // Jump to 100%
-        document.getElementById('progress-fill').style.width = '100%';
-        document.getElementById('progress-percentage').textContent = '100%';
+        // Jump to 100% and change bar styling
+        const fillBar = document.getElementById('progress-fill');
+        fillBar.style.width = '100%';
+        fillBar.classList.remove('gradient-bar');
+        fillBar.style.background = 'var(--success)';
+        
+        const percentageTxt = document.getElementById('progress-percentage');
+        percentageTxt.textContent = '100%';
+        percentageTxt.style.color = 'var(--success)';
         
         // Update UI to success state
         document.getElementById('progress-spinner').classList.add('hidden');
         document.getElementById('progress-success').classList.remove('hidden');
-        document.getElementById('progress-status-text').textContent = messageOverride || "Pipeline completed successfully!";
+        document.getElementById('progress-status-text').textContent = messageOverride || "Pipeline processing complete!";
         document.getElementById('progress-subtext').classList.add('hidden');
         
         // Show actual duration stats panel
         const statsPanel = document.getElementById('completion-stats');
         statsPanel.classList.remove('hidden');
-        document.getElementById('final-duration-text').textContent = `Task took ${durationStr}`;
+        document.getElementById('final-duration-text').textContent = `Task completed in ${durationStr}`;
         
         // Show close button
         document.getElementById('pipeline-done-actions').classList.remove('hidden');
