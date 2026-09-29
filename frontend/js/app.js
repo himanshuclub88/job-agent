@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     /* --- State & Config --- */
-    const API_URL = "http://127.0.0.1:8000/api/summary";
-    const API_RUN_PIPELINE = "http://127.0.0.1:8000/api/run-pipeline";
-    const API_PIPELINE_STATUS = "http://127.0.0.1:8000/api/pipeline-status";
+    const API_URL = "http://127.0.0.1:8080/api/summary";
+    const API_RUN_PIPELINE = "http://127.0.0.1:8080/api/run-pipeline";
+    const API_PIPELINE_STATUS = "http://127.0.0.1:8080/api/pipeline-status";
     
     // Pipeline state
     let isPipelineRunning = false;
