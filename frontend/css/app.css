@@ -475,3 +475,10 @@ h3 { font-size: 1.1em; font-weight: 600; }
 .reply-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
 .reply-btn { white-space:nowrap; }
 @media (max-width:768px) { .reply-actions { flex-direction:column; } .reply-actions .btn { width:100%; justify-content:center; } .reply-textarea { min-height:220px; } }
+
+.reply-completed {
+    color: var(--success);
+    border-color: var(--success);
+    background: var(--success-light);
+    pointer-events: none;
+}

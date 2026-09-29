@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeReplyMessageId = null;
     let activeReplyThreadId = null;
     let replyGenerating = false;
+    const replySentByMessageId = new Map();
 
     /* --- Dashboard State --- */
     let currentFilter = 'all';
@@ -225,6 +226,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!res.ok) throw new Error(`Summary API returned HTTP ${res.status}`);
 
             globalData = await res.json();
+
+            // Load persisted reply state so sent replies are shown as completed.
+            replySentByMessageId.clear();
+            const responsibilityItems = Array.isArray(globalData.responsibilities) ? globalData.responsibilities : [];
+            await Promise.all(responsibilityItems.map(async (item) => {
+                if (!item.message_id) return;
+                try {
+                    const statusRes = await fetch(`${API_REPLY_STATUS}/${encodeURIComponent(item.message_id)}`);
+                    if (!statusRes.ok) return;
+                    const status = await statusRes.json();
+                    replySentByMessageId.set(item.message_id, status.reply_sent === true);
+                } catch (_) {
+                    // Keep the existing dashboard usable if a reply-status check fails.
+                }
+            }));
+
             filterAndRender();
             return true;
         } catch (err) {
@@ -302,9 +319,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="item-actions">
-                    <button class="btn btn-primary btn-sm reply-btn" data-message-id="${item.message_id}" data-thread-id="${item.thread_id}">
-                        <i class="fa-solid fa-reply"></i> Reply
-                    </button>
+                    ${replySentByMessageId.get(item.message_id) === true
+                        ? `<span class="btn btn-outline btn-sm reply-completed"><i class="fa-solid fa-circle-check"></i> Replied</span>`
+                        : `<button class="btn btn-primary btn-sm reply-btn" data-message-id="${item.message_id}" data-thread-id="${item.thread_id}">
+                            <i class="fa-solid fa-reply"></i> Reply
+                        </button>`}
                     <a href="${emailUrl}" target="_blank" class="btn btn-outline btn-sm"><i class="fa-regular fa-envelope"></i> Email</a>
                 </div>
             </div>`;
@@ -523,6 +542,8 @@ document.addEventListener('DOMContentLoaded', () => {
             statusText.textContent = 'Reply sent successfully.';
             statusText.className = 'reply-status-text';
             replyText.disabled = true;
+            replySentByMessageId.set(activeReplyMessageId, true);
+            await fetchData();
         } catch (error) {
             statusText.textContent = `Unable to send reply: ${error.message}`;
             statusText.className = 'reply-status-text reply-status-error';
