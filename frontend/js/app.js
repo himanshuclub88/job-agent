@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', () => {
     /* --- State & Config --- */
     const API_URL = "http://localhost:8000/api/summary";
-    const API_RUN_PIPELINE = "http://localhost:8080/api/run-pipeline";
-    const API_PIPELINE_STATUS = "http://localhost:8080/api/pipeline-status";
+    const API_RUN_PIPELINE = "http://localhost:8000/api/run-pipeline";
+    const API_PIPELINE_STATUS = "http://localhost:8000/api/pipeline-status";
     
     // Pipeline state
     let isPipelineRunning = false;
@@ -10,13 +10,14 @@ document.addEventListener('DOMContentLoaded', () => {
     let localProgressTimer = null;
     let serverPollTimer = null;
     let devForceComplete = false;
+    let lastRenderedLogCount = 0;
 
     // Filter & Search State
     let currentFilter = 'all';
     let currentSearch = '';
     let globalData = null;
 
-    // Fallback Data matching updated schema with received_at, last_run, last_run_duration
+    // Fallback Data matching updated schema
     const fallbackData = {
         "last_run": "29 Sep 2026, 05:15 PM",
         "last_run_duration": "4 minutes, 20 seconds",
@@ -132,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('theme', theme);
         
         document.querySelectorAll('.theme-dot').forEach(dot => {
-            if(dot.getAttribute('data-theme-val') === theme) {
+            if (dot.getAttribute('data-theme-val') === theme) {
                 dot.classList.add('active');
             } else {
                 dot.classList.remove('active');
@@ -188,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Category filter chips
         document.querySelectorAll('.filter-chip').forEach(chip => {
-            chip.addEventListener('click', (e) => {
+            chip.addEventListener('click', () => {
                 document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
                 chip.classList.add('active');
                 currentFilter = chip.getAttribute('data-filter');
@@ -284,7 +285,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function itemMatches(item) {
-        // Search string check
         if (currentSearch) {
             const combinedText = `
                 ${item.company || ''} 
@@ -298,7 +298,6 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Filter chips check
         if (currentFilter === 'all') return true;
         const haystack = `${item.company || ''} ${item.job_title || ''} ${item.text || ''} ${item.location || ''}`.toLowerCase();
         
@@ -497,13 +496,13 @@ Himanshu Singh
         isPipelineRunning = true;
         pipelineStartTime = Date.now();
         devForceComplete = false;
+        lastRenderedLogCount = 0;
 
-        // Reset terminal
+        // Reset terminal UI
         document.getElementById('terminal-body').innerHTML = '';
-        appendTerminalLog("Connecting to Gmail API...", "Phase 1/4");
         
         localProgressTimer = setInterval(updateVisualProgress, 1000);
-        serverPollTimer = setInterval(pollServerStatus, 3000);
+        serverPollTimer = setInterval(pollServerStatus, 2000);
     }
 
     function formatTime(seconds) {
@@ -512,7 +511,6 @@ Himanshu Singh
         return m + ":" + (s < 10 ? "0" : "") + s;
     }
 
-    let lastLoggedSec = 0;
     function updateVisualProgress() {
         if (!isPipelineRunning) return;
         
@@ -522,24 +520,6 @@ Himanshu Singh
         if (devForceComplete) {
             finishPipeline("Simulated fast forward.");
             return;
-        }
-
-        // Live Simulated terminal feed for UX
-        if (elapsedSec > 3 && lastLoggedSec < 3) {
-            appendTerminalLog("Reading Gmail context: Context window 7 days...", "Phase 1/4");
-            lastLoggedSec = 3;
-        } else if (elapsedSec > 8 && lastLoggedSec < 8) {
-            appendTerminalLog("Found messages. Filtering state store candidates...", "Phase 2/4");
-            lastLoggedSec = 8;
-        } else if (elapsedSec > 16 && lastLoggedSec < 16) {
-            appendTerminalLog("Invoking LLM classification chain batch...", "Phase 2/4");
-            lastLoggedSec = 16;
-        } else if (elapsedSec > 30 && lastLoggedSec < 30) {
-            appendTerminalLog("Extracting structured job events from emails...", "Phase 3/4");
-            lastLoggedSec = 30;
-        } else if (elapsedSec > 45 && lastLoggedSec < 45) {
-            appendTerminalLog("Merging cached history with newly found events...", "Phase 4/4");
-            lastLoggedSec = 45;
         }
 
         if (elapsedSec < 600) {
@@ -563,12 +543,22 @@ Himanshu Singh
             if (res.ok) {
                 const status = await res.json();
                 
+                // Stream real logs from server.py buffer
+                if (status.logs && status.logs.length > lastRenderedLogCount) {
+                    const newLogs = status.logs.slice(lastRenderedLogCount);
+                    newLogs.forEach(logLine => {
+                        appendTerminalLog(logLine, status.current_step);
+                    });
+                    lastRenderedLogCount = status.logs.length;
+                }
+
+                // Check completion trigger
                 if (status.is_running === false && status.duration_str) {
                     finishPipeline(status.duration_str, status.message);
                 }
             }
         } catch (e) {
-            // Backend offline
+            // Server temporarily offline or unreachable
         }
     }
 
@@ -578,9 +568,6 @@ Himanshu Singh
         
         isPipelineRunning = false;
         document.getElementById('start-pipeline-btn').disabled = false;
-        
-        appendTerminalLog("HTML and JSON files generated successfully.", "Done");
-        appendTerminalLog(`Pipeline finished in ${durationStr}`, "Done");
 
         const fillBar = document.getElementById('progress-fill');
         fillBar.style.width = '100%';
