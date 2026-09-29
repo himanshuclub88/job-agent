@@ -112,12 +112,12 @@ def execute_pipeline() -> None:
         relevant = [c for c in classifications if c.is_job_related]
         emit_log(f"Classification completed: {len(relevant)} job-related email(s) flagged.", "Phase 2/4")
 
-        if not relevant:
-            emit_log("No job-related emails detected. Ending run.", "Done")
-            pipeline_state["is_running"] = False
-            pipeline_state["message"] = "No job-related emails found."
-            pipeline_state["duration_str"] = "0 seconds"
-            return
+        # if not relevant: #i am running still since want it to regenrate all the data and dealine ex if today not recived but it will update upcoming and all
+        #     emit_log("No job-related emails detected. Ending run.", "Done")
+        #     pipeline_state["is_running"] = False
+        #     pipeline_state["message"] = "No job-related emails found."
+        #     pipeline_state["duration_str"] = "0 seconds"
+        #     return
 
         emit_log(f"Extracting structured job events via LLM from {len(relevant)} email(s)...", "Phase 3/4")
         events = extract_job_events_from_emails(emails, relevant, settings)

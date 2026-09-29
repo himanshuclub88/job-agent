@@ -390,3 +390,75 @@ h3 { font-size: 1.1em; font-weight: 600; }
     .filter-bar { overflow-x: auto; padding-bottom: 6px; }
     .modal { width: 95%; }
 }
+
+/* --- Usability refinements --- */
+.modal {
+    width: min(480px, calc(100vw - 32px));
+    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-body {
+    overflow-y: auto;
+}
+
+.terminal-body {
+    height: 150px;
+}
+
+#completion-stats.pipeline-failed {
+    background: var(--danger-light) !important;
+    border-color: var(--danger) !important;
+    color: var(--danger) !important;
+}
+
+.icon-btn:focus-visible,
+.close-btn:focus-visible,
+.btn:focus-visible,
+.filter-chip:focus-visible,
+.nav-item:focus-visible,
+.theme-dot:focus-visible,
+.search-box input:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+    .sidebar {
+        overflow-x: auto;
+    }
+
+    .sidebar-nav {
+        overflow-x: auto;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .main-content {
+        min-width: 0;
+    }
+
+    .header-actions {
+        flex-wrap: wrap;
+    }
+
+    .search-box {
+        flex: 1 1 220px;
+    }
+
+    .modal {
+        width: calc(100vw - 24px);
+        max-height: calc(100vh - 24px);
+    }
+
+    .modal-header,
+    .modal-body {
+        padding-left: 18px;
+        padding-right: 18px;
+    }
+
+    .terminal-body {
+        height: 135px;
+    }
+}

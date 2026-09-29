@@ -2,7 +2,7 @@
 setlocal
 
 rem ============================================================
-rem AI Data Engineering Copilot - Offline Demo Launcher
+rem  Offline Demo Launcher
 rem Starts Backend and Frontend in separate CMD windows.
 rem ============================================================
 
@@ -34,18 +34,18 @@ echo.
 echo Starting AI Data Engineering Copilot...
 echo.
 
-start "AI Copilot - Backend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%"" && echo [Backend] http://127.0.0.1:8080 && uvicorn server:app --reload"
+start "AI Job Assitant - Backend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%"" && echo [Backend] http://127.0.0.1:8000 && uvicorn server:app --reload"
 
 rem Wait 5 seconds
 timeout /t 5 /nobreak >nul
 
-start "AI Copilot - Frontend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%\frontend"" && echo [Frontend] http://127.0.0.1:5500 && python -m http.server 5500"
+start "AI Job Assitant - Frontend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%\frontend"" && echo [Frontend] http://127.0.0.1:5500 && python -m http.server 5500"
 
 timeout /t 2 /nobreak >nul
 start "" "http://127.0.0.1:5500"
 
 echo.
-echo Backend:  http://127.0.0.1:8080
+echo Backend:  http://127.0.0.1:8000
 echo Frontend: http://127.0.0.1:5500
 echo.
 echo Two CMD windows were opened.

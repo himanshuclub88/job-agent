@@ -75,7 +75,8 @@ class JobEvent(BaseModel):
     opportunity: bool = False
     opportunity_url: str | None = None
     location: str | None = None
-
+    need_to_reply: bool = False
+    suggested_reply: str | None = None
     summary: str
 
 

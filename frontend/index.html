@@ -201,8 +201,9 @@
                     <i class="fa-solid fa-robot fa-bounce" style="color: var(--primary); font-size: 1.8em; position: relative; z-index: 2;"></i>
                 </div>
                 <div class="success-icon hidden" id="progress-success"><i class="fa-solid fa-circle-check" style="color: var(--success); font-size: 2.5em;"></i></div>
+                <div class="success-icon hidden" id="progress-failure"><i class="fa-solid fa-circle-xmark" style="color: var(--danger); font-size: 2.5em;"></i></div>
                 <h4 id="progress-status-text" style="margin-top: 14px; font-size: 16px;">Extracting emails & analyzing data...</h4>
-                <p class="text-muted text-sm" id="progress-subtext" style="margin-top: 4px;">Up to 10 minutes. You can safely close this popup; execution continues in background.</p>
+                <p class="text-muted text-sm" id="progress-subtext" style="margin-top: 4px;">You can safely close this popup; the pipeline continues running in the background.</p>
             </div>
             
             <div class="progress-wrapper">
@@ -234,27 +235,6 @@
                 <button class="btn btn-primary" id="done-pipeline-btn" style="width: 100%; justify-content: center; padding: 10px;">Close Panel & Refresh</button>
             </div>
             
-            <div style="text-align: center; margin-top: 12px;">
-                <button class="btn btn-outline btn-sm text-muted" id="dev-fast-forward" style="opacity: 0.1; font-size: 10px; padding: 2px 5px;">Dev: Force Complete</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Recruiter Reply Assistant Modal -->
-    <div class="modal hidden" id="reply-modal" style="width: 540px;">
-        <div class="modal-header">
-            <h3><i class="fa-solid fa-wand-magic-sparkles" style="color: var(--primary); margin-right: 6px;"></i> AI Response Assistant</h3>
-            <button class="close-btn" id="close-reply-btn"><i class="fa-solid fa-xmark"></i></button>
-        </div>
-        <div class="modal-body">
-            <p class="text-muted" style="margin-bottom: 12px;">Generated draft for <strong id="reply-recipient" style="color: var(--text-main);">Recruiter</strong>:</p>
-            <div class="form-group">
-                <textarea id="reply-draft-area" class="form-control" rows="8" style="font-family: inherit; resize: vertical; line-height: 1.5;"></textarea>
-            </div>
-            <div class="form-actions" style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center;">
-                <button class="btn btn-outline btn-sm" id="copy-draft-btn"><i class="fa-regular fa-copy"></i> Copy to Clipboard</button>
-                <a href="#" target="_blank" class="btn btn-primary btn-sm" id="open-gmail-reply-btn"><i class="fa-solid fa-envelope-open-text"></i> Open in Gmail</a>
-            </div>
         </div>
     </div>
 
