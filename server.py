@@ -72,11 +72,13 @@ def execute_pipeline():
             return
 
         events = extract_job_events_from_emails(emails, relevant, settings)
+        print('extracted job event from pipeline: ',len(events))
         cached = state.load_events_for_current_window(events, start_date, end_date)
         all_events = state.merge_events(cached, events)
         future_store = FutureEventStore(settings.future_events_file)
         future_events = future_store.load()
 
+        print('total events to analyse',len(all_events))
         daily = analyze_today(all_events, today, future_events, settings)
 
         state.save(emails, all_events)
