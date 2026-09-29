@@ -220,6 +220,29 @@ def trigger_pipeline(background_tasks: BackgroundTasks):
         "message": "AI email extraction pipeline has been started.",
     }
 
+@app.get("/api/reply-status/{message_id}", tags=["Reply"])
+def get_reply_status(message_id: str):
+    settings = get_settings()
+    state = load_json_file(settings.state_file)
+
+    event = state.get("events", {}).get(message_id)
+
+    if event is None:
+        return {
+            "status": "event_not_found",
+            "message_id": message_id,
+            "need_to_reply": False,
+        }
+
+    need_to_reply = bool(event.get("need_to_reply", False))
+
+    return {
+        "status": "reply_needed" if need_to_reply else "reply_not_needed",
+        "message_id": message_id,
+        "thread_id": event.get("thread_id"),
+        "need_to_reply": need_to_reply,
+    }
+
 
 if __name__ == "__main__":
     import uvicorn
