@@ -26,6 +26,8 @@ Use the email's message_id, thread_id, and received_at exactly.
 
 Classify each email with one of the allowed categories.
 
+need_to_reply: true only if a direct response is expected; otherwise false.
+
 Important:
 
 - Job alerts/recommendations are opportunities, not applications.
