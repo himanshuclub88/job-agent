@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
 # Initialize FastAPI app
@@ -179,6 +180,56 @@ def execute_pipeline() -> None:
 
 
 # ==========================================
+# REPLY GENERATOR
+# ==========================================
+
+class ReplyRequest(BaseModel):
+    message_id: str
+    thread_id: str
+    generate_again: bool = False
+
+
+def get_reply_state_path(settings) -> Path:
+    return settings.state_file.parent / "reply_state.json"
+
+
+def load_reply_state(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"messages": {}}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {"messages": {}}
+    except (OSError, json.JSONDecodeError):
+        return {"messages": {}}
+
+
+def save_reply_state(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+
+
+def generate_email_reply(message_id: str, thread_id: str, settings) -> str:
+    from reply_generator import generate_reply
+    from gmail_client import GmailClient
+    from llm import get_llm
+
+    gmail = GmailClient(settings)
+    llm = get_llm()
+
+    def call_llm(prompt: str) -> str:
+        result = llm.invoke(prompt)
+        return result.content if hasattr(result, "content") else str(result)
+
+    return generate_reply(
+        gmail=gmail,
+        message_id=message_id,
+        thread_id=thread_id,
+        llm=call_llm,
+    )
+
+# ==========================================
 # API ENDPOINTS
 # ==========================================
 
@@ -197,6 +248,66 @@ def get_summary():
 def get_future_events():
     settings = get_settings()
     return load_json_file(settings.future_events_file)
+
+
+@app.post("/api/generate-reply", tags=["Reply"])
+def generate_reply_api(request: ReplyRequest):
+    
+    settings = get_settings()
+    reply_path = get_reply_state_path(settings)
+    state = load_reply_state(reply_path)
+    messages = state.setdefault("messages", {})
+
+    existing = messages.get(request.message_id)
+
+    if existing and existing.get("reply_generated") and not request.generate_again:
+        return {
+            "status": "success",
+            "message_id": request.message_id,
+            "thread_id": request.thread_id,
+            "reply": existing.get("reply", ""),
+            "generation_count": existing.get("generation_count", 1),
+            "cached": True,
+        }
+
+    try:
+        reply = generate_email_reply(
+            request.message_id,
+            request.thread_id,
+            settings,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate reply: {type(e).__name__}: {e}",
+        )
+
+    generation_count = (
+        int(existing.get("generation_count", 0))
+        + 1
+        if existing
+        else 1
+    )
+
+    messages[request.message_id] = {
+        "thread_id": request.thread_id,
+        "reply_generated": True,
+        "reply_sent": existing.get("reply_sent", False) if existing else False,
+        "generation_count": generation_count,
+        "reply": reply,
+        "generated_at": datetime.now(settings.tz).isoformat(),
+    }
+
+    save_reply_state(reply_path, state)
+
+    return {
+        "status": "success",
+        "message_id": request.message_id,
+        "thread_id": request.thread_id,
+        "reply": reply,
+        "generation_count": generation_count,
+        "cached": False,
+    }
 
 
 @app.get("/api/pipeline-status", tags=["Pipeline"])
