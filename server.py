@@ -365,20 +365,29 @@ def get_reply_status(message_id: str):
     state = load_json_file(settings.state_file)
     event = state.get("events", {}).get(message_id)
 
+    reply_state = load_reply_state(get_reply_state_path(settings))
+    reply_record = reply_state.get("messages", {}).get(message_id, {})
+
     if event is None:
         return {
             "status": "event_not_found",
             "message_id": message_id,
             "need_to_reply": False,
+            "reply_generated": bool(reply_record.get("reply_generated", False)),
+            "reply_sent": bool(reply_record.get("reply_sent", False)),
         }
 
     need_to_reply = bool(event.get("need_to_reply", False))
+    reply_sent = bool(reply_record.get("reply_sent", False))
+    reply_generated = bool(reply_record.get("reply_generated", False))
 
     return {
-        "status": "reply_needed" if need_to_reply else "reply_not_needed",
+        "status": "reply_sent" if reply_sent else ("reply_needed" if need_to_reply else "reply_not_needed"),
         "message_id": message_id,
         "thread_id": event.get("thread_id"),
         "need_to_reply": need_to_reply,
+        "reply_generated": reply_generated,
+        "reply_sent": reply_sent,
     }
 
 
