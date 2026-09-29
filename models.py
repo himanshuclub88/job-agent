@@ -95,6 +95,7 @@ class DailyResponsibility(BaseModel):
 class UpcomingItem(BaseModel):
     message_id: str
     thread_id: str
+    received_at: datetime
     company: str | None = None
     job_title: str | None = None
     text: str
