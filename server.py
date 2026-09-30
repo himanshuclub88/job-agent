@@ -337,6 +337,38 @@ def send_reply(message_id: str, thread_id: str, reply: str, settings) -> dict[st
         "thread_id": sent.get("threadId") or target["thread_id"],
     }
 
+# ==========================================
+# OPPORTUNITY STATE
+# ==========================================
+
+class OpportunityApplyRequest(BaseModel):
+    message_id: str
+
+
+def get_opportunity_state_path(settings) -> Path:
+    return settings.state_file.parent / "opportunity_state.json"
+
+
+def load_opportunity_state(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {"opportunities": {}}
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        return data if isinstance(data, dict) else {"opportunities": {}}
+
+    except (OSError, json.JSONDecodeError):
+        return {"opportunities": {}}
+
+
+def save_opportunity_state(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+
 
 # ==========================================
 # API ENDPOINTS
@@ -529,6 +561,51 @@ def trigger_pipeline(background_tasks: BackgroundTasks):
         "status": "success",
         "message": "AI email extraction pipeline has been started.",
     }
+
+
+@app.get("/api/opportunity-status/{message_id}", tags=["Opportunities"])
+def get_opportunity_status(message_id: str):
+    settings = get_settings()
+
+    path = get_opportunity_state_path(settings)
+    state = load_opportunity_state(path)
+
+    opportunity = state.get("opportunities", {}).get(message_id)
+
+    return {
+        "message_id": message_id,
+        "applied": bool(opportunity and opportunity.get("applied", False)),
+    }
+
+
+@app.post("/api/opportunity-apply", tags=["Opportunities"])
+def mark_opportunity_applied(request: OpportunityApplyRequest):
+    settings = get_settings()
+
+    path = get_opportunity_state_path(settings)
+    state = load_opportunity_state(path)
+
+    opportunities = state.setdefault("opportunities", {})
+
+    existing = opportunities.get(request.message_id, {})
+
+    opportunities[request.message_id] = {
+        "message_id": request.message_id,
+        "applied": True,
+        "applied_at": existing.get(
+            "applied_at",
+            datetime.now(settings.tz).isoformat()
+        ),
+    }
+
+    save_opportunity_state(path, state)
+
+    return {
+        "status": "success",
+        "message_id": request.message_id,
+        "applied": True,
+    }
+
 
 
 
