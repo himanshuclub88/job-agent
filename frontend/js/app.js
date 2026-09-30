@@ -831,30 +831,93 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* --- Pipeline Progress --- */
+    // Visual progress is intentionally time-based and smooth.
+    // The timings below are only guidance for the animation; the backend
+    // status still decides when a phase has actually finished.
+    const PROGRESS_PHASES = [
+        { key: 'fetch', start: 0, end: 10, seconds: 60 },
+        { key: 'classification', start: 10, end: 20, seconds: 240 },
+        { key: 'extraction', start: 20, end: 30, seconds: 180 },
+        { key: 'analyze', start: 30, end: 95, seconds: 420 },
+        { key: 'save', start: 95, end: 100, seconds: 30 }
+    ];
+
+    let visualPhaseKey = 'fetch';
+    let visualPhaseStartedAt = 0;
+
+    function detectVisualPhase(serverStatus = null, elapsedSec = 0) {
+        const step = String(serverStatus?.current_step || '').toLowerCase();
+
+        if (step.includes('save') || step.includes('write') || step.includes('output')) return 'save';
+        if (step.includes('analy')) return 'analyze';
+        if (step.includes('extract') || step.includes('event')) return 'extraction';
+        if (step.includes('classif')) return 'classification';
+        if (step.includes('fetch') || step.includes('email') || step.includes('gmail')) return 'fetch';
+
+        // If the backend does not expose a phase yet, use the same timing
+        // assumptions as a visual fallback.
+        if (elapsedSec < 60) return 'fetch';
+        if (elapsedSec < 300) return 'classification';
+        if (elapsedSec < 480) return 'extraction';
+        if (elapsedSec < 900) return 'analyze';
+        return 'save';
+    }
+
+    function smoothProgress(elapsedSec, serverStatus = null) {
+        const phaseKey = detectVisualPhase(serverStatus, elapsedSec);
+        const phase = PROGRESS_PHASES.find(p => p.key === phaseKey) || PROGRESS_PHASES[0];
+
+        if (phaseKey !== visualPhaseKey || !visualPhaseStartedAt) {
+            visualPhaseKey = phaseKey;
+            visualPhaseStartedAt = Date.now();
+        }
+
+        const phaseElapsed = Math.max(0, (Date.now() - visualPhaseStartedAt) / 1000);
+        const raw = Math.min(0.98, phaseElapsed / phase.seconds);
+
+        // Ease-out: moves noticeably at first, then slows naturally instead
+        // of climbing 1% at a time at a constant rate.
+        const eased = 1 - Math.pow(1 - raw, 2.2);
+        return phase.start + (phase.end - phase.start) * eased;
+    }
+
     function updateVisualProgress(serverStatus = null) {
         if (!isPipelineRunning) return;
 
         const elapsedSec = getElapsedSeconds();
-        let progress = null;
-
-        // Use backend progress when available. Otherwise retain the old
-        // time-based estimate as a visual fallback.
-        if (serverStatus && Number.isFinite(Number(serverStatus.progress))) {
-            progress = Math.max(0, Math.min(99, Number(serverStatus.progress)));
-        }
-
-        if (progress === null) {
-            if (elapsedSec < 600) {
-                progress = (elapsedSec / 600) * 90;
-            } else {
-                progress = Math.min(99, 90 + ((elapsedSec - 600) / 60));
-            }
-        }
+        const progress = Math.max(0, Math.min(99, smoothProgress(elapsedSec, serverStatus)));
 
         document.getElementById('progress-fill').style.width = `${progress}%`;
         document.getElementById('progress-percentage').textContent = `${Math.floor(progress)}%`;
         document.getElementById('progress-time').textContent = formatTime(elapsedSec);
     }
+
+    
+    // /* --- Pipeline Progress --- */
+    // function updateVisualProgress(serverStatus = null) {
+    //     if (!isPipelineRunning) return;
+
+    //     const elapsedSec = getElapsedSeconds();
+    //     let progress = null;
+
+    //     // Use backend progress when available. Otherwise retain the old
+    //     // time-based estimate as a visual fallback.
+    //     if (serverStatus && Number.isFinite(Number(serverStatus.progress))) {
+    //         progress = Math.max(0, Math.min(99, Number(serverStatus.progress)));
+    //     }
+
+    //     if (progress === null) {
+    //         if (elapsedSec < 600) {
+    //             progress = (elapsedSec / 600) * 90;
+    //         } else {
+    //             progress = Math.min(99, 90 + ((elapsedSec - 600) / 60));
+    //         }
+    //     }
+
+    //     document.getElementById('progress-fill').style.width = `${progress}%`;
+    //     document.getElementById('progress-percentage').textContent = `${Math.floor(progress)}%`;
+    //     document.getElementById('progress-time').textContent = formatTime(elapsedSec);
+    // }
 
     function updatePipelineFromStatus(status) {
         if (!status) return;
