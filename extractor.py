@@ -28,6 +28,8 @@ Classify each email with one of the allowed categories.
 
 need_to_reply: true only if a direct response is expected; otherwise false.
 
+recruiter_email: Use the alternate email from the mail body, if provided; otherwise, leave it null.
+
 Important:
 
 - Job alerts/recommendations are opportunities, not applications.
