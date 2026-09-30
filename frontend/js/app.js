@@ -7,6 +7,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const API_GENERATE_REPLY = "http://127.0.0.1:8000/api/generate-reply";
     const API_CREATE_DRAFT = "http://127.0.0.1:8000/api/create-reply-draft";
     const API_SEND_REPLY = "http://127.0.0.1:8000/api/send-reply";
+    const API_OPPORTUNITY_STATUS = "http://127.0.0.1:8000/api/opportunity-status";
+    const API_OPPORTUNITY_APPLY = "http://127.0.0.1:8000/api/opportunity-apply";
 
     /* --- UI / Pipeline State --- */
     const PIPELINE_STARTED_AT_KEY = 'ai-assistant-pipeline-started-at';
@@ -26,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeReplyThreadId = null;
     let replyGenerating = false;
     const replySentByMessageId = new Map();
+    const opportunityAppliedByMessageId = new Map();
 
     /* --- Dashboard State --- */
     let currentFilter = 'all';
@@ -242,6 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }));
 
+            await fetchOpportunityStatuses();
             filterAndRender();
             return true;
         } catch (err) {
@@ -249,6 +253,86 @@ document.addEventListener('DOMContentLoaded', () => {
             globalData = emptyData;
             filterAndRender();
             return false;
+        }
+    }
+
+    async function fetchOpportunityStatuses() {
+        opportunityAppliedByMessageId.clear();
+
+        const opportunities = Array.isArray(globalData?.opportunities)
+            ? globalData.opportunities
+            : [];
+
+        // Load the state for each opportunity using its own message_id.
+        // This keeps the UI state tied directly to the opportunity shown on screen.
+        await Promise.all(
+            opportunities
+                .filter(item => item && item.message_id)
+                .map(async (item) => {
+                    const messageId = item.message_id;
+
+                    try {
+                        const res = await fetch(
+                            `${API_OPPORTUNITY_STATUS}/${encodeURIComponent(messageId)}`
+                        );
+
+                        if (!res.ok) {
+                            throw new Error(`HTTP ${res.status}`);
+                        }
+
+                        const data = await res.json();
+
+                        opportunityAppliedByMessageId.set(
+                            messageId,
+                            data.applied === true
+                        );
+                    } catch (error) {
+                        console.warn(
+                            `Unable to load opportunity state for ${messageId}:`,
+                            error
+                        );
+
+                        // If the status request fails, treat it as not applied
+                        // rather than preventing the rest of the dashboard from rendering.
+                        opportunityAppliedByMessageId.set(messageId, false);
+                    }
+                })
+        );
+    }
+
+    function sortNewestFirst(items) {
+        return [...items].sort((a, b) => {
+            const dateA = new Date(a.received_at || 0).getTime();
+            const dateB = new Date(b.received_at || 0).getTime();
+            return dateB - dateA;
+        });
+    }
+
+    async function markOpportunityApplied(messageId, url) {
+        try {
+            const res = await fetch(API_OPPORTUNITY_APPLY, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_id: messageId })
+            });
+
+            if (!res.ok) {
+                let detail = `HTTP ${res.status}`;
+                try {
+                    const errorData = await res.json();
+                    detail = errorData.detail || detail;
+                } catch (_) {}
+                throw new Error(detail);
+            }
+
+            opportunityAppliedByMessageId.set(messageId, true);
+            filterAndRender();
+        } catch (error) {
+            console.error('Unable to save opportunity application state:', error);
+        }
+
+        if (url) {
+            window.open(url, '_blank');
         }
     }
 
@@ -298,10 +382,10 @@ document.addEventListener('DOMContentLoaded', () => {
             `).join('')
             : '<div style="padding:15px;text-align:center;color:var(--text-muted);">All caught up!</div>';
 
-        const responsibilities = (globalData.responsibilities || []).filter(itemMatches);
-        const opportunities = (globalData.opportunities || []).filter(itemMatches);
-        const updates = (globalData.updates || []).filter(itemMatches);
-        const upcoming = (globalData.upcoming || []).filter(itemMatches);
+        const responsibilities = sortNewestFirst((globalData.responsibilities || []).filter(itemMatches));
+        const opportunities = sortNewestFirst((globalData.opportunities || []).filter(itemMatches));
+        const updates = sortNewestFirst((globalData.updates || []).filter(itemMatches));
+        const upcoming = sortNewestFirst((globalData.upcoming || []).filter(itemMatches));
 
         renderRows('responsibilities-list', 'resp-count', responsibilities, item => {
             const emailUrl = `https://mail.google.com/mail/u/1/#all/${item.thread_id}`;
@@ -345,7 +429,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
                 <div class="item-actions">
-                    ${item.url ? `<a href="${item.url}" target="_blank" class="btn btn-primary btn-sm">Apply</a>` : ''}
+                    ${item.url ? `
+                        <button
+                            class="btn ${opportunityAppliedByMessageId.get(item.message_id) ? 'btn-outline' : 'btn-primary'} btn-sm apply-btn"
+                            data-message-id="${item.message_id}"
+                            data-url="${item.url}"
+                        >
+                            <i class="fa-solid ${opportunityAppliedByMessageId.get(item.message_id) ? 'fa-circle-check' : 'fa-arrow-up-right-from-square'}"></i>
+                            ${opportunityAppliedByMessageId.get(item.message_id) ? 'Applied' : 'Apply'}
+                        </button>`
+                    : ''}
                     <a href="${emailUrl}" target="_blank" class="btn btn-outline btn-sm">Email</a>
                 </div>
             </div>`;
@@ -552,6 +645,14 @@ document.addEventListener('DOMContentLoaded', () => {
             openGmailBtn.disabled = false;
         }
     }
+
+    document.addEventListener('click', (event) => {
+        const button = event.target.closest('.apply-btn');
+        if (!button) return;
+
+        event.preventDefault();
+        markOpportunityApplied(button.dataset.messageId, button.dataset.url);
+    });
 
     document.addEventListener('click', (event) => {
         const button = event.target.closest('.reply-btn');
