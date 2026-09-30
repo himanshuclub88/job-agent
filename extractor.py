@@ -35,7 +35,7 @@ Important:
 - If the email merely confirms an application,
   action_required should normally be false.
 - If an email says an earlier task was completed,
-  capture the completed status in summary/status.
+  capture the completed status in summary/status [add in summary need to apply and if any replyed need to reply].
 """
 
 
