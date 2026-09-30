@@ -148,7 +148,16 @@ class GmailClient:
                 return self._decode_part(plain)
             html = next((p for p in parts if p.get("mimeType") == "text/html"), None)
             if html:
-                return BeautifulSoup(self._decode_part(html), "html.parser").get_text("\n")
+                soup = BeautifulSoup(self._decode_part(html), "html.parser")
+                for a in soup.find_all("a", href=True):
+                    href = a.get("href", "").strip()
+                    label = a.get_text(" ", strip=True)
+                    if href:
+                        if label:
+                            a.replace_with(f"{label}: {href}")
+                        else:
+                            a.replace_with(href)
+                return soup.get_text("\n")
 
             for part in parts:
                 nested = self._extract_body(part)
@@ -158,7 +167,16 @@ class GmailClient:
         if payload.get("mimeType") in {"text/plain", "text/html"} and payload.get("body", {}).get("data"):
             text = self._decode_part(payload)
             if payload.get("mimeType") == "text/html":
-                text = BeautifulSoup(text, "html.parser").get_text("\n")
+                soup = BeautifulSoup(text, "html.parser")
+                for a in soup.find_all("a", href=True):
+                    href = a.get("href", "").strip()
+                    label = a.get_text(" ", strip=True)
+                    if href:
+                        if label:
+                            a.replace_with(f"{label}: {href}")
+                        else:
+                            a.replace_with(href)
+                text = soup.get_text("\n")
             return text
 
         return ""
@@ -170,4 +188,38 @@ class GmailClient:
             return ""
         return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode(
             "utf-8", errors="replace"
+        )
+
+if __name__ == "__main__":
+    from email_parser import clean_email
+    from config import settings
+
+    MESSAGE_ID = "1a0e747b68851849"
+
+    gmail = GmailClient(settings)
+
+    try:
+        raw = (
+            gmail.service.users()
+            .messages()
+            .get(
+                userId="me",
+                id=MESSAGE_ID,
+                format="full",
+            )
+            .execute()
+        )
+
+        # Same parsing/scrubbing used by fetch_messages()
+        message = clean_email(gmail._parse_message(raw))
+
+        with open("mail.txt", "w", encoding="utf-8") as f:
+            f.write(message.body)
+
+        print("Saved email body to mail.txt")
+
+    except Exception as e:
+        print(
+            f"Failed to fetch Gmail message "
+            f"{MESSAGE_ID}: {type(e).__name__}: {e}"
         )
