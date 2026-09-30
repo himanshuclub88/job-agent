@@ -2,16 +2,13 @@
 setlocal
 
 rem ============================================================
-rem Project Configuration
+rem  Offline Demo Launcher
+rem Starts Backend and Frontend in separate CMD windows.
 rem ============================================================
 
 set "PROJECT_NAME=AI JOB Assistant"
 set "PROJECT=G:\Other computers\My Laptop\Study\AI\job-agent"
 set "VENV=c:\venvs\job-agent\.venv"
-
-rem ============================================================
-rem Validation
-rem ============================================================
 
 if not exist "%VENV%\Scripts\activate.bat" (
     echo [ERROR] Virtual environment not found:
@@ -34,42 +31,26 @@ if not exist "%PROJECT%\frontend\index.html" (
     exit /b 1
 )
 
-rem ============================================================
-rem Start Project
-rem ============================================================
-
-echo.
-echo ============================================================
-echo        %PROJECT_NAME%
-echo ============================================================
 echo.
 echo Starting %PROJECT_NAME%...
 echo.
 
-wt ^
-  --title "%PROJECT_NAME% - Backend" ^
-  cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%"" && echo [%PROJECT_NAME% - Backend] && echo http://127.0.0.1:8000 && uvicorn server:app --reload" ^
-  ; split-pane -V ^
-  --title "%PROJECT_NAME% - Frontend" ^
-  cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%\frontend"" && echo [%PROJECT_NAME% - Frontend] && echo http://127.0.0.1:5500 && python -m http.server 5500"
+start "%PROJECT_NAME% - Backend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%"" && echo [%PROJECT_NAME% - Backend] http://127.0.0.1:8000 && uvicorn server:app --reload"
 
-rem ============================================================
-rem Open Frontend
-rem ============================================================
+rem Wait 5 seconds
+timeout /t 5 /nobreak >nul
 
-timeout /t 3 /nobreak >nul
+start "%PROJECT_NAME% - Frontend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%\frontend"" && echo [%PROJECT_NAME% - Frontend] http://127.0.0.1:5500 && python -m http.server 5500"
 
+timeout /t 2 /nobreak >nul
 start "" "http://127.0.0.1:5500"
 
 echo.
-echo ============================================================
-echo        %PROJECT_NAME% Started
-echo ============================================================
+echo Backend:  http://127.0.0.1:8000
+echo Frontend: http://127.0.0.1:5500
 echo.
-echo Backend  : http://127.0.0.1:8000
-echo Frontend : http://127.0.0.1:5500
-echo.
-echo Backend and Frontend are running side-by-side.
+echo Two CMD windows were opened.
+echo Close those windows to stop the demo.
 echo.
 
 endlocal
