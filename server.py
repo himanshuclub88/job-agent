@@ -36,7 +36,7 @@ pipeline_state: dict[str, Any] = {
     "duration_str": None,
     "last_run": None,
     "logs": [],          
-    "current_step": "Phase 1/4"
+    "current_step": "Phase 1/9"
 }
 
 
@@ -76,7 +76,7 @@ def execute_pipeline() -> None:
     pipeline_state["duration_str"] = None
     pipeline_state["logs"] = []
     
-    emit_log("Engine session started.", "Phase 1/4")
+    emit_log("Engine session started.", "Phase 1/9")
     start_time = time.perf_counter()
 
     try:
@@ -90,14 +90,14 @@ def execute_pipeline() -> None:
         from responsibility import analyze_today
         from state import StateStore
 
-        emit_log("Authenticating and connecting to Gmail API...", "Phase 1/4")
+        emit_log("Authenticating and connecting to Gmail API...", "Phase 1/9")
         gmail = GmailClient(settings)
         today = gmail.today()
         start_date, end_date = gmail.context_dates(today)
-        emit_log(f"Fetching mailbox context: {start_date:%d %b} → {end_date:%d %b %Y}", "Phase 1/4")
+        emit_log(f"Fetching mailbox context: {start_date:%d %b} → {end_date:%d %b %Y}", "Phase 1/9")
 
         emails = gmail.fetch_messages(start_date, end_date)
-        emit_log(f"Retrieved {len(emails)} messages from Gmail.", "Phase 1/4")
+        emit_log(f"Retrieved {len(emails)} messages from Gmail.", "Phase 1/9")
 
         if not emails:
             emit_log("No emails found in this timeframe. Pipeline terminating early.", "Done")
@@ -106,15 +106,15 @@ def execute_pipeline() -> None:
             pipeline_state["duration_str"] = "0 seconds"
             return
 
-        emit_log("Checking state store cache to filter previously processed emails...", "Phase 2/4")
+        emit_log("Checking state store cache to filter previously processed emails...", "Phase 2/9")
         state = StateStore(settings.state_file)
         candidates = state.filter_for_processing(emails)
-        emit_log(f"Identified {len(candidates)} new candidate email(s) for classification.", "Phase 2/4")
+        emit_log(f"Identified {len(candidates)} new candidate email(s) for classification.", "Phase 3/9")
 
         emit_log(f"Invoking LLM classification chain (Batch size: 15)...", "Phase 2/4")
         classifications = classify_emails(candidates, settings)
         relevant = [c for c in classifications if c.is_job_related]
-        emit_log(f"Classification completed: {len(relevant)} job-related email(s) flagged.", "Phase 2/4")
+        emit_log(f"Classification completed: {len(relevant)} job-related email(s) flagged.", "Phase 4/9")
 
         # if not relevant: #i am running still since want it to regenrate all the data and dealine ex if today not recived but it will update upcoming and all
         #     emit_log("No job-related emails detected. Ending run.", "Done")
@@ -123,22 +123,22 @@ def execute_pipeline() -> None:
         #     pipeline_state["duration_str"] = "0 seconds"
         #     return
 
-        emit_log(f"Extracting structured job events via LLM from {len(relevant)} email(s)...", "Phase 3/4")
+        emit_log(f"Extracting structured job events via LLM from {len(relevant)} email(s)...", "Phase 5/9")
         events = extract_job_events_from_emails(emails, relevant, settings)
         emit_log(f"Extracted {len(events)} discrete job events.", "Phase 3/4")
 
         cached = state.load_events_for_current_window(events, start_date, end_date)
         all_events = state.merge_events(cached, events)
-        emit_log(f"Merged with 7-day window cache. Total events: {len(all_events)}.", "Phase 3/4")
+        emit_log(f"Merged with 7-day window cache. Total events: {len(all_events)}.", "Phase 6/9")
 
         emit_log("Loading commitments from future_events.json...", "Phase 4/4")
         future_store = FutureEventStore(settings.future_events_file)
         future_events = future_store.load()
 
-        emit_log("Running daily responsibility & opportunity analysis chain...", "Phase 4/4")
-        daily = analyze_today(all_events, today, future_events, settings)
+        emit_log("Running daily responsibility & opportunity analysis chain...", "Phase 7/9")
+        daily = analyze_today(all_events, today, emails, future_events, settings)
 
-        emit_log("Persisting updated events to state.json and future_events.json...", "Phase 4/4")
+        emit_log("Persisting updated events to state.json and future_events.json...", "Phase 8/9")
         state.save(emails, all_events)
         future_store.save(daily.upcoming)
 
@@ -155,7 +155,7 @@ def execute_pipeline() -> None:
 
         run_timestamp = datetime.now(settings.tz).strftime("%d %b %Y, %I:%M %p")
 
-        emit_log("Serializing JSON and writing payload...", "Phase 4/4")
+        emit_log("Serializing JSON and writing payload...", "Phase 9/9")
         
         summary_dict = daily.model_dump(mode="json")
         summary_dict["last_run"] = run_timestamp
@@ -165,7 +165,7 @@ def execute_pipeline() -> None:
         with open(settings.output_file_json, "w", encoding="utf-8") as f:
             json.dump(summary_dict, f, indent=2)
 
-        emit_log(f"Writing static HTML fallback to {settings.output_file_html.name}...", "Phase 4/4")
+        emit_log(f"Writing static HTML fallback to {settings.output_file_html.name}...", "Phase 9/9")
         generate_html(daily, today, settings.output_file_html)
 
         emit_log(f"Run completed successfully in {duration_str}.", "Done")
