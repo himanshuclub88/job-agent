@@ -35,8 +35,7 @@ echo.
 echo Starting %PROJECT_NAME%...
 echo.
 
-start "%PROJECT_NAME% - Backend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%"" && echo [%PROJECT_NAME% - Backend] http://127.0.0.1:8000 && uvicorn server:app --reload"
-
+start "%PROJECT_NAME% - Backend" cmd /k "call ""%VENV%\Scripts\activate.bat"" && cd /d ""%PROJECT%"" && echo [%PROJECT_NAME% - Backend] http://127.0.0.1:8081 && uvicorn server:app --host 127.0.0.1 --port 8081 --reload"
 rem Wait 5 seconds
 timeout /t 5 /nobreak >nul
 

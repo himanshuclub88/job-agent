@@ -1,14 +1,14 @@
 document.addEventListener('DOMContentLoaded', () => {
     /* --- API --- */
-    const API_URL = "http://127.0.0.1:8000/api/summary";
-    const API_RUN_PIPELINE = "http://127.0.0.1:8000/api/run-pipeline";
-    const API_PIPELINE_STATUS = "http://127.0.0.1:8000/api/pipeline-status";
-    const API_REPLY_STATUS = "http://127.0.0.1:8000/api/reply-status";
-    const API_GENERATE_REPLY = "http://127.0.0.1:8000/api/generate-reply";
-    const API_CREATE_DRAFT = "http://127.0.0.1:8000/api/create-reply-draft";
-    const API_SEND_REPLY = "http://127.0.0.1:8000/api/send-reply";
-    const API_OPPORTUNITY_STATUS = "http://127.0.0.1:8000/api/opportunity-status";
-    const API_OPPORTUNITY_APPLY = "http://127.0.0.1:8000/api/opportunity-apply";
+    const API_URL = "http://127.0.0.1:8081/api/summary";
+    const API_RUN_PIPELINE = "http://127.0.0.1:8081/api/run-pipeline";
+    const API_PIPELINE_STATUS = "http://127.0.0.1:8081/api/pipeline-status";
+    const API_REPLY_STATUS = "http://127.0.0.1:8081/api/reply-status";
+    const API_GENERATE_REPLY = "http://127.0.0.1:8081/api/generate-reply";
+    const API_CREATE_DRAFT = "http://127.0.0.1:8081/api/create-reply-draft";
+    const API_SEND_REPLY = "http://127.0.0.1:8081/api/send-reply";
+    const API_OPPORTUNITY_STATUS = "http://127.0.0.1:8081/api/opportunity-status";
+    const API_OPPORTUNITY_APPLY = "http://127.0.0.1:8081/api/opportunity-apply";
 
     /* --- UI / Pipeline State --- */
     const PIPELINE_STARTED_AT_KEY = 'ai-assistant-pipeline-started-at';
@@ -830,94 +830,133 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /* --- Pipeline Progress --- */
-    // Visual progress is intentionally time-based and smooth.
-    // The timings below are only guidance for the animation; the backend
-    // status still decides when a phase has actually finished.
-    const PROGRESS_PHASES = [
-        { key: 'fetch', start: 0, end: 10, seconds: 60 },
-        { key: 'classification', start: 10, end: 20, seconds: 240 },
-        { key: 'extraction', start: 20, end: 30, seconds: 180 },
-        { key: 'analyze', start: 30, end: 95, seconds: 420 },
-        { key: 'save', start: 95, end: 100, seconds: 30 }
-    ];
+    let candidateCount = null;
+    let phase3Detected = false;
+    let phase3StartProgress = 0;
+    let phase3StartElapsed = 0;
+    let reached90Elapsed = null;
+    let latestPipelineStatus = null;
 
-    let visualPhaseKey = 'fetch';
-    let visualPhaseStartedAt = 0;
-
-    function detectVisualPhase(serverStatus = null, elapsedSec = 0) {
-        const step = String(serverStatus?.current_step || '').toLowerCase();
-
-        if (step.includes('save') || step.includes('write') || step.includes('output')) return 'save';
-        if (step.includes('analy')) return 'analyze';
-        if (step.includes('extract') || step.includes('event')) return 'extraction';
-        if (step.includes('classif')) return 'classification';
-        if (step.includes('fetch') || step.includes('email') || step.includes('gmail')) return 'fetch';
-
-        // If the backend does not expose a phase yet, use the same timing
-        // assumptions as a visual fallback.
-        if (elapsedSec < 60) return 'fetch';
-        if (elapsedSec < 300) return 'classification';
-        if (elapsedSec < 480) return 'extraction';
-        if (elapsedSec < 900) return 'analyze';
-        return 'save';
-    }
-
-    function smoothProgress(elapsedSec, serverStatus = null) {
-        const phaseKey = detectVisualPhase(serverStatus, elapsedSec);
-        const phase = PROGRESS_PHASES.find(p => p.key === phaseKey) || PROGRESS_PHASES[0];
-
-        if (phaseKey !== visualPhaseKey || !visualPhaseStartedAt) {
-            visualPhaseKey = phaseKey;
-            visualPhaseStartedAt = Date.now();
-        }
-
-        const phaseElapsed = Math.max(0, (Date.now() - visualPhaseStartedAt) / 1000);
-        const raw = Math.min(0.98, phaseElapsed / phase.seconds);
-
-        // Ease-out: moves noticeably at first, then slows naturally instead
-        // of climbing 1% at a time at a constant rate.
-        const eased = 1 - Math.pow(1 - raw, 2.2);
-        return phase.start + (phase.end - phase.start) * eased;
-    }
-
+        /* --- Pipeline Progress --- */
     function updateVisualProgress(serverStatus = null) {
         if (!isPipelineRunning) return;
 
         const elapsedSec = getElapsedSeconds();
-        const progress = Math.max(0, Math.min(99, smoothProgress(elapsedSec, serverStatus)));
 
-        document.getElementById('progress-fill').style.width = `${progress}%`;
-        document.getElementById('progress-percentage').textContent = `${Math.floor(progress)}%`;
-        document.getElementById('progress-time').textContent = formatTime(elapsedSec);
+        if (serverStatus) {
+            latestPipelineStatus = serverStatus;
+        }
+
+        let progress;
+
+        // =========================================================
+        // BEFORE PHASE 3
+        // Slow default pace: 0 -> 90% over 300 seconds
+        // =========================================================
+        if (!phase3Detected) {
+
+            progress = Math.min(
+                90,
+                (elapsedSec / 300) * 90
+            );
+
+            // Detect Phase 3
+            if (
+                latestPipelineStatus?.current_step === "Phase 3/9" &&
+                Array.isArray(latestPipelineStatus.logs)
+            ) {
+                for (
+                    let i = latestPipelineStatus.logs.length - 1;
+                    i >= 0;
+                    i--
+                ) {
+                    const match = String(
+                        latestPipelineStatus.logs[i]
+                    ).match(
+                        /Identified\s+(\d+)\s+new candidate email\(s\) for classification\./i
+                    );
+
+                    if (match) {
+                        candidateCount = Number(match[1]);
+
+                        // Keep the EXACT progress already reached
+                        phase3StartProgress = progress;
+                        phase3StartElapsed = elapsedSec;
+
+                        phase3Detected = true;
+
+                        break;
+                    }
+                }
+            }
+        }
+
+        // =========================================================
+        // AFTER PHASE 3 DETECTION
+        // Continue from current progress -> 90%
+        // =========================================================
+        if (phase3Detected) {
+
+            const processingSeconds = Math.max(
+                1,
+                candidateCount * 7
+            );
+
+            const phase3Elapsed = Math.max(
+                0,
+                elapsedSec - phase3StartElapsed
+            );
+
+            // -----------------------------------------------------
+            // Move from the progress we had when Phase 3 was
+            // detected up to 90%
+            // -----------------------------------------------------
+            if (phase3Elapsed < processingSeconds) {
+
+                progress =
+                    phase3StartProgress +
+                    (
+                        phase3Elapsed / processingSeconds
+                    ) *
+                    (90 - phase3StartProgress);
+
+            } else {
+
+                // -------------------------------------------------
+                // We have reached 90%
+                // Record the exact time ONCE
+                // -------------------------------------------------
+                if (reached90Elapsed === null) {
+                    reached90Elapsed =
+                        phase3StartElapsed + processingSeconds;
+                }
+
+                // -------------------------------------------------
+                // 90% -> 99%
+                // Take 60 seconds
+                // -------------------------------------------------
+                const after90Elapsed =
+                    Math.max(
+                        0,
+                        elapsedSec - reached90Elapsed
+                    );
+
+                progress = Math.min(
+                    99,
+                    90 + (after90Elapsed / 60) * 9
+                );
+            }
+        }
+
+        document.getElementById('progress-fill').style.width =
+            `${progress}%`;
+
+        document.getElementById('progress-percentage').textContent =
+            `${Math.floor(progress)}%`;
+
+        document.getElementById('progress-time').textContent =
+            formatTime(elapsedSec);
     }
-
-    
-    // /* --- Pipeline Progress --- */
-    // function updateVisualProgress(serverStatus = null) {
-    //     if (!isPipelineRunning) return;
-
-    //     const elapsedSec = getElapsedSeconds();
-    //     let progress = null;
-
-    //     // Use backend progress when available. Otherwise retain the old
-    //     // time-based estimate as a visual fallback.
-    //     if (serverStatus && Number.isFinite(Number(serverStatus.progress))) {
-    //         progress = Math.max(0, Math.min(99, Number(serverStatus.progress)));
-    //     }
-
-    //     if (progress === null) {
-    //         if (elapsedSec < 600) {
-    //             progress = (elapsedSec / 600) * 90;
-    //         } else {
-    //             progress = Math.min(99, 90 + ((elapsedSec - 600) / 60));
-    //         }
-    //     }
-
-    //     document.getElementById('progress-fill').style.width = `${progress}%`;
-    //     document.getElementById('progress-percentage').textContent = `${Math.floor(progress)}%`;
-    //     document.getElementById('progress-time').textContent = formatTime(elapsedSec);
-    // }
 
     function updatePipelineFromStatus(status) {
         if (!status) return;
