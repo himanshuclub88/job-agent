@@ -11,7 +11,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from bs4 import BeautifulSoup
-
+from email_parser import clean_email
 from models import EmailMessage
 
 SCOPES = ["https://www.googleapis.com/auth/gmail.modify"]
@@ -128,7 +128,7 @@ class GmailClient:
         received_ms = int(raw.get("internalDate", "0"))
         received_at = datetime.fromtimestamp(received_ms / 1000, tz=self.settings.tz)
 
-        return EmailMessage(
+        return clean_email(EmailMessage(
             message_id=raw["id"],
             thread_id=raw.get("threadId", raw["id"]),
             received_at=received_at,
@@ -138,7 +138,7 @@ class GmailClient:
             subject=headers.get("subject", ""),
             body=body[:30000],
             snippet=raw.get("snippet", ""),
-        )
+        ))
 
     def _extract_body(self, payload: dict) -> str:
         parts = payload.get("parts", [])
@@ -191,7 +191,6 @@ class GmailClient:
         )
 
 if __name__ == "__main__":
-    from email_parser import clean_email
     from config import settings
 
     MESSAGE_ID = "1a0e747b68851849"

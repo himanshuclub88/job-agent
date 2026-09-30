@@ -78,6 +78,11 @@ Keep the reply concise.
 Return only the email body.
 
 resume link if asked for resume : https://himanshuclub88.github.io/ResumeLatex/
+3
+IF ASKED BY RECUITER 
+CTC : 5 LPA
+EXPECTED CTC : 15 LPA
+Notice Period : 90 days
 
 Conversation:
 {conversation}
