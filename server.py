@@ -111,7 +111,7 @@ def execute_pipeline() -> None:
         candidates = state.filter_for_processing(emails)
         emit_log(f"Identified {len(candidates)} new candidate email(s) for classification.", "Phase 3/9")
 
-        emit_log(f"Invoking LLM classification chain (Batch size: 15)...", "Phase 2/4")
+        emit_log(f"Invoking LLM classification chain (Batch size: 15)...", "Phase 3/9")
         classifications = classify_emails(candidates, settings)
         relevant = [c for c in classifications if c.is_job_related]
         emit_log(f"Classification completed: {len(relevant)} job-related email(s) flagged.", "Phase 4/9")
@@ -272,13 +272,30 @@ def get_reply_target(settings, message_id: str, thread_id: str) -> dict[str, str
     }
 
 
-def build_reply_raw(target: dict[str, str], reply: str) -> str:
+def build_reply_raw(settings,target: dict[str, str], reply: str) -> str:
     subject = target["subject"]
     if subject and not subject.lower().startswith("re:"):
         subject = f"Re: {subject}"
 
+    # Read recruiter email from state.json
+    recruiter_email = None
+    if settings.state_file.exists():
+        try:
+            with open(settings.state_file, "r", encoding="utf-8") as f:
+                state = json.load(f)
+            event = state.get("events", {}).get(target["message_id"], {})
+            recruiter_email = event.get("recruiter_email")
+        except (OSError, json.JSONDecodeError):
+            recruiter_email = None
+
     message = EmailMessage()
-    message["To"] = target["to"]
+
+    if recruiter_email:
+        message["To"] = recruiter_email
+        message["Cc"] = target["to"]
+    else:
+        message["To"] = target["to"]
+
     message["Subject"] = subject
     message["In-Reply-To"] = target["message_id"]
     references = target.get("references", "").strip()
@@ -296,7 +313,7 @@ def create_reply_draft(message_id: str, thread_id: str, reply: str, settings) ->
 
     gmail = GmailClient(settings)
     target = get_reply_target(settings, message_id, thread_id)
-    raw = build_reply_raw(target, reply)
+    raw = build_reply_raw(settings,target, reply)
 
     draft = gmail.service.users().drafts().create(
         userId="me",
@@ -322,7 +339,7 @@ def send_reply(message_id: str, thread_id: str, reply: str, settings) -> dict[st
 
     gmail = GmailClient(settings)
     target = get_reply_target(settings, message_id, thread_id)
-    raw = build_reply_raw(target, reply)
+    raw = build_reply_raw(settings,target, reply)
 
     sent = gmail.service.users().messages().send(
         userId="me",
